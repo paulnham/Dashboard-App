@@ -90,8 +90,14 @@
 
         const { useState, useEffect, useCallback, useMemo, createElement: h } = React;
 
-        // --- CONSTANTS & CONFIG ---
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // --- SAFE CONFIG PARSING ---
+        let firebaseConfig = {};
+        try {
+            firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+        } catch (e) {
+            console.warn("Firebase configuration not found or invalid. Persistance disabled.");
+        }
+
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
@@ -172,7 +178,7 @@
 
         function WeatherAnimation({ code }) {
             if (code <= 1) {
-                return h('div', { className: 'absolute inset-0 flex items-center justify-center overflow-hidden bg-gradient-to-br from-amber-500/10 to-transparent' },
+                return h('div', { className: 'absolute inset-0 flex items-center justify-center overflow-hidden' },
                     h('div', { className: 'relative w-28 h-28' },
                         h('div', { className: 'absolute inset-0 bg-amber-400 rounded-full animate-sun-glow shadow-[0_0_80px_rgba(251,191,36,0.7)]' }),
                         h('div', { className: 'absolute inset-[-40px] animate-ray-rotate' },
@@ -186,11 +192,6 @@
                     h('div', { className: 'absolute top-1/4 left-1/4 w-40 h-24 bg-stone-300/90 dark:bg-stone-600/80 rounded-full blur-2xl animate-cloud-move opacity-80' }),
                     h('div', { className: 'absolute top-1/2 right-1/4 w-48 h-28 bg-stone-400/80 dark:bg-stone-500/60 rounded-full blur-3xl animate-cloud-move opacity-70', style: { animationDelay: '-3s' } }),
                     h('div', { className: 'absolute bottom-1/4 left-1/3 w-36 h-20 bg-stone-200/70 dark:bg-stone-700 rounded-full blur-xl animate-cloud-move opacity-80', style: { animationDelay: '-1.5s' } })
-                );
-            }
-            if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) {
-                return h('div', { className: 'absolute inset-0 overflow-hidden bg-blue-500/5' },
-                    Array.from({ length: 30 }).map((_, i) => h('div', { key: i, className: 'absolute w-1 h-12 bg-blue-400 rounded-full animate-rain-drop shadow-sm', style: { left: Math.random() * 100 + '%', top: '-15%', animationDelay: Math.random() * 2 + 's' } }))
                 );
             }
             return null;
@@ -445,7 +446,7 @@
             const [events, setEvents] = useState([]);
             const [tasks, setTasks] = useState([]);
             const [calendars, setCalendars] = useState([]);
-            const [selectedCalIds, setSelectedCalIds] = useState(() => JSON.parse(localStorage.getItem('zen_selected_calendars')) || []);
+            const [selectedCalIds, setSelectedCalIds] = useState(() => JSON.parse(localStorage.getItem('zen_selected_calendars') || '[]'));
             const [viewDate, setViewDate] = useState(new Date());
             const [weatherData, setWeatherData] = useState(null);
             const [locationLabel, setLocationLabel] = useState('Santa Clara');
@@ -466,19 +467,33 @@
                         try {
                             const res = await fetch('https://nominatim.openstreetmap.org/reverse?lat=' + latitude + '&lon=' + longitude + '&format=json');
                             const data = await res.json();
-                            const city = data.address.city || data.address.town || data.address.village || data.address.suburb || "Current Location";
+                            const city = data?.address?.city || data?.address?.town || data?.address?.village || data?.address?.suburb || "Current Location";
                             setLocationLabel(city);
                         } catch (e) { setLocationLabel("Current Location"); }
                     }, () => {});
                 }
             }, []);
 
+            // --- UI Setup & Loader Disposal ---
+            useEffect(() => {
+                const loader = document.getElementById('loader');
+                if (loader) loader.style.display = 'none';
+            }, []);
+
+            useEffect(() => {
+                document.documentElement.classList.toggle('dark', isDarkMode);
+                document.body.className = isDarkMode ? 'dark' : 'light';
+                localStorage.setItem('zen_theme', isDarkMode ? 'dark' : 'light');
+            }, [isDarkMode]);
+
             // --- Authentication ---
             useEffect(() => {
                 const initAuth = async () => {
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else { await signInAnonymously(auth); }
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else { await signInAnonymously(auth); }
+                    } catch (e) { console.warn("Auth initialization failed:", e); }
                 };
                 initAuth();
                 const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -490,14 +505,19 @@
                 if (!user) return;
                 const habitsCollection = collection(db, 'artifacts', appId, 'users', user.uid, 'habits');
                 const migrate = async () => {
-                    const localHabits = JSON.parse(localStorage.getItem('zen_habits_v1'));
-                    if (localHabits && localHabits.length > 0) {
-                        const existingCheck = await getDoc(doc(habitsCollection, localHabits[0].id.toString()));
-                        if (!existingCheck.exists()) {
-                            for (const h of localHabits) { await setDoc(doc(habitsCollection, h.id.toString()), h); }
-                            localStorage.removeItem('zen_habits_v1');
+                    try {
+                        const localHabitsRaw = localStorage.getItem('zen_habits_v1');
+                        if (localHabitsRaw) {
+                            const localHabits = JSON.parse(localHabitsRaw);
+                            if (localHabits.length > 0) {
+                                const existingCheck = await getDoc(doc(habitsCollection, localHabits[0].id.toString()));
+                                if (!existingCheck.exists()) {
+                                    for (const h of localHabits) { await setDoc(doc(habitsCollection, h.id.toString()), h); }
+                                    localStorage.removeItem('zen_habits_v1');
+                                }
+                            }
                         }
-                    }
+                    } catch (e) { console.warn("Migration failed:", e); }
                 };
                 migrate();
                 const unsubscribe = onSnapshot(habitsCollection, (snapshot) => {
@@ -526,18 +546,25 @@
                 await deleteDoc(habitDoc);
             };
 
-            // --- Spotify Token handling ---
+            // --- Spotify PKCE/Token handling ---
             useEffect(() => {
                 const handleSpotifyToken = async () => {
                     const params = new URLSearchParams(window.location.search);
                     const code = params.get('code');
                     const codeVerifier = localStorage.getItem('spotify_code_verifier');
+                    
                     if (code && codeVerifier) {
                         try {
                             const response = await fetch('https://accounts.spotify.com/api/token', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                                body: new URLSearchParams({ client_id: SPOTIFY_CLIENT_ID, grant_type: 'authorization_code', code: code, redirect_uri: window.location.origin + window.location.pathname, code_verifier: codeVerifier }),
+                                body: new URLSearchParams({
+                                    client_id: SPOTIFY_CLIENT_ID,
+                                    grant_type: 'authorization_code',
+                                    code: code,
+                                    redirect_uri: window.location.origin + window.location.pathname,
+                                    code_verifier: codeVerifier,
+                                }),
                             });
                             const data = await response.json();
                             if (data.access_token) {
@@ -549,6 +576,7 @@
                     }
                 };
                 handleSpotifyToken();
+
                 const hash = window.location.hash;
                 if (hash) {
                     const params = new URLSearchParams(hash.substring(1));
@@ -556,14 +584,6 @@
                     if (token) { setSpotifyToken(token); localStorage.setItem('zen_spotify_token', token); window.location.hash = ''; }
                 }
             }, []);
-
-            // --- UI Setup ---
-            useEffect(() => {
-                const loader = document.getElementById('loader'); if (loader) loader.style.display = 'none';
-                document.documentElement.classList.toggle('dark', isDarkMode);
-                document.body.className = isDarkMode ? 'dark' : 'light';
-                localStorage.setItem('zen_theme', isDarkMode ? 'dark' : 'light');
-            }, [isDarkMode]);
 
             // --- Weather Fetching ---
             useEffect(() => {
@@ -582,7 +602,6 @@
             const fetchGoogleData = useCallback(async (t) => {
                 try {
                     const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).toISOString();
-                    // We remove timeMax to allow for fetching future events for the Timeline tab
                     if (calendars.length === 0) {
                         const listRes = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", { headers: { Authorization: 'Bearer ' + t } });
                         const listData = await listRes.json();
@@ -591,7 +610,13 @@
                     const ids = selectedCalIds.length > 0 ? selectedCalIds : calendars.map(c => c.id);
                     if (ids.length > 0) {
                         const results = await Promise.all(ids.map(id => fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(id) + '/events?timeMin=' + start + '&singleEvents=true&orderBy=startTime', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()).catch(() => ({ items: [] }))));
-                        const merged = results.flatMap(r => r.items || []).map(ev => ({ title: ev.summary || 'Untitled', rawDate: ev.start.dateTime || ev.start.date, time: ev.start.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'All Day', location: ev.location || '', notes: ev.description || '' })).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+                        const merged = results.flatMap(r => r.items || []).map(ev => ({
+                            title: ev.summary || 'Untitled',
+                            rawDate: ev.start.dateTime || ev.start.date,
+                            time: ev.start.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'All Day',
+                            location: ev.location || '',
+                            notes: ev.description || ''
+                        })).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
                         setEvents(merged);
                     }
                     const resT = await fetch("https://www.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=10", { headers: { Authorization: 'Bearer ' + t } });
