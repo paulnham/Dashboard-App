@@ -407,7 +407,7 @@
                             h('h2', { className: 'text-3xl font-light serif text-stone-800 dark:text-stone-100 leading-tight' }, date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })),
                             h('p', { className: 'text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1' }, date.toLocaleDateString('en-US', { weekday: 'long' }))
                         ),
-                        h('button', { onClick: onClose, className: 'p-2 text-stone-300 hover:text-stone-500 dark:hover:text-white' }, h('svg', { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 }, h('path', { d: "M18 6L6 18M6 6l12 12" })))
+                        h('button', { onClick: onClose, className: 'p-2 text-stone-300 hover:text-stone-50 dark:hover:text-white' }, h('svg', { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2 }, h('path', { d: "M18 6L6 18M6 6l12 12" })))
                     ),
                     h('div', { className: 'flex-1 overflow-y-auto no-scrollbar space-y-6' },
                         events.map((e, idx) => h('div', { key: idx, className: 'p-6 bg-stone-50/50 dark:bg-stone-900/30 rounded-3xl border border-stone-100 dark:border-white/5' },
@@ -505,7 +505,7 @@
                     setHabits(list);
                 }, (err) => console.error(err));
                 return () => unsubscribe();
-            }, [user]);
+            }, [user, appId]);
 
             const updateHabitInCloud = async (id, updatedData) => {
                 if (!user) return;
@@ -582,7 +582,7 @@
             const fetchGoogleData = useCallback(async (t) => {
                 try {
                     const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).toISOString();
-                    const end = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0).toISOString();
+                    // We remove timeMax to allow for fetching future events for the Timeline tab
                     if (calendars.length === 0) {
                         const listRes = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList", { headers: { Authorization: 'Bearer ' + t } });
                         const listData = await listRes.json();
@@ -590,7 +590,7 @@
                     }
                     const ids = selectedCalIds.length > 0 ? selectedCalIds : calendars.map(c => c.id);
                     if (ids.length > 0) {
-                        const results = await Promise.all(ids.map(id => fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(id) + '/events?timeMin=' + start + '&timeMax=' + end + '&singleEvents=true&orderBy=startTime', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()).catch(() => ({ items: [] }))));
+                        const results = await Promise.all(ids.map(id => fetch('https://www.googleapis.com/calendar/v3/calendars/' + encodeURIComponent(id) + '/events?timeMin=' + start + '&singleEvents=true&orderBy=startTime', { headers: { Authorization: 'Bearer ' + t } }).then(r => r.json()).catch(() => ({ items: [] }))));
                         const merged = results.flatMap(r => r.items || []).map(ev => ({ title: ev.summary || 'Untitled', rawDate: ev.start.dateTime || ev.start.date, time: ev.start.dateTime ? new Date(ev.start.dateTime).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : 'All Day', location: ev.location || '', notes: ev.description || '' })).sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
                         setEvents(merged);
                     }
@@ -682,7 +682,7 @@
                         h('span', { className: 'text-xs font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest' }, e.time)
                     ),
                     e.location && h('div', { className: 'flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mt-2 mb-4' }, h('span', null, '📍'), h('span', null, e.location)),
-                    e.notes && h('div', { className: 'text-sm text-stone-400 dark:text-stone-500 leading-relaxed border-t border-stone-100 dark:border-stone-800/50 pt-4 mt-2 serif italic' }, e.notes.replace(/<[^>]*>?/gm, ''))
+                    e.notes && h('div', { className: 'text-sm text-stone-500 dark:text-stone-400 leading-relaxed border-t border-stone-100 dark:border-stone-800/50 pt-4 mt-2 serif italic' }, e.notes.replace(/<[^>]*>?/gm, ''))
                 )) : h('p', { className: 'italic text-stone-300' }, 'No upcoming events found.'))
             );
 
