@@ -175,10 +175,51 @@
       100% { transform: translateX(20px); }
     }
 
+    @keyframes vinyl-spin {
+      from { transform: translateY(-50%) rotate(0deg); }
+      to { transform: translateY(-50%) rotate(360deg); }
+    }
+
     .animate-sun-glow { animation: sun-glow 4s ease-in-out infinite; }
     .animate-ray-rotate { animation: ray-rotate 30s linear infinite; }
     .animate-rain-drop { animation: rain-drop 1s linear infinite; }
     .animate-cloud-move { animation: cloud-move 6s ease-in-out infinite alternate; }
+
+    .vinyl-record {
+      position: absolute;
+      top: 50%;
+      right: -20%;
+      transform: translateY(-50%);
+      border-radius: 9999px;
+      box-shadow:
+        0 30px 70px rgba(0,0,0,0.45),
+        inset 0 0 0 1px rgba(255,255,255,0.06);
+    }
+
+    .vinyl-record.spinning {
+      animation: vinyl-spin 3.6s linear infinite;
+    }
+
+    .vinyl-grooves {
+      position: absolute;
+      inset: 6%;
+      border-radius: 9999px;
+      background:
+        repeating-radial-gradient(
+          circle,
+          rgba(255,255,255,0.05) 0px,
+          rgba(255,255,255,0.05) 1px,
+          rgba(0,0,0,0) 2px,
+          rgba(0,0,0,0) 6px
+        );
+      opacity: 0.28;
+      pointer-events: none;
+    }
+
+    .spotify-feather {
+      -webkit-mask-image: linear-gradient(to top, black 0%, black 68%, transparent 100%);
+      mask-image: linear-gradient(to top, black 0%, black 68%, transparent 100%);
+    }
 
     .sleep-overlay {
       position: fixed;
@@ -353,6 +394,73 @@
         .replace(/\//g, "_")
         .replace(/=+$/, "");
     };
+
+    async function extractAlbumPalette(imageUrl) {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+
+        img.onload = () => {
+          try {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d", { willReadFrequently: true });
+            const size = 48;
+            canvas.width = size;
+            canvas.height = size;
+            ctx.drawImage(img, 0, 0, size, size);
+
+            const data = ctx.getImageData(0, 0, size, size).data;
+            const buckets = [];
+
+            for (let i = 0; i < data.length; i += 16) {
+              const r = data[i];
+              const g = data[i + 1];
+              const b = data[i + 2];
+              const a = data[i + 3];
+              if (a < 200) continue;
+
+              const brightness = (r + g + b) / 3;
+              if (brightness < 18 || brightness > 242) continue;
+
+              buckets.push([r, g, b]);
+            }
+
+            if (!buckets.length) {
+              resolve(["#f5f5f4", "#a8a29e", "#44403c", "#0c0a09"]);
+              return;
+            }
+
+            const sample = buckets.filter((_, i) => i % 3 === 0);
+            const sorted = sample.sort((a, b) => {
+              const sa = a[0] + a[1] + a[2];
+              const sb = b[0] + b[1] + b[2];
+              return sb - sa;
+            });
+
+            const picks = [
+              sorted[0],
+              sorted[Math.floor(sorted.length * 0.25)] || sorted[0],
+              sorted[Math.floor(sorted.length * 0.55)] || sorted[0],
+              sorted[Math.floor(sorted.length * 0.8)] || sorted[0],
+            ];
+
+            const palette = picks.map(
+              ([r, g, b]) => `rgb(${r}, ${g}, ${b})`
+            );
+
+            resolve(palette);
+          } catch {
+            resolve(["#f5f5f4", "#a8a29e", "#44403c", "#0c0a09"]);
+          }
+        };
+
+        img.onerror = () => {
+          resolve(["#f5f5f4", "#a8a29e", "#44403c", "#0c0a09"]);
+        };
+
+        img.src = imageUrl;
+      });
+    }
 
     function ThemeToggle({ isDarkMode, onToggle }) {
       return h(
@@ -741,8 +849,72 @@
       );
     }
 
+    function VinylRecord({ isPlaying, palette }) {
+      const colors = palette?.length >= 4
+        ? palette
+        : ["#f5f5f4", "#a8a29e", "#44403c", "#0c0a09"];
+
+      const vinylStyle = {
+        width: "18rem",
+        height: "18rem",
+        background: `
+          radial-gradient(circle at center, rgba(0,0,0,0.92) 0 18%, transparent 18.5%),
+          radial-gradient(circle at center, rgba(255,255,255,0.08) 0 3%, rgba(0,0,0,0.85) 3.5%, rgba(0,0,0,0.98) 100%),
+          conic-gradient(
+            from 0deg,
+            ${colors[0]} 0deg,
+            ${colors[1]} 80deg,
+            ${colors[2]} 180deg,
+            ${colors[3]} 280deg,
+            ${colors[0]} 360deg
+          )
+        `,
+      };
+
+      const labelStyle = {
+        width: "4.2rem",
+        height: "4.2rem",
+        background: `radial-gradient(circle, ${colors[0]} 0%, ${colors[1]} 35%, ${colors[2]} 70%, ${colors[3]} 100%)`,
+        boxShadow: "0 0 20px rgba(255,255,255,0.08), inset 0 0 0 1px rgba(255,255,255,0.12)",
+      };
+
+      return h(
+        "div",
+        {
+          className: "vinyl-record " + (isPlaying ? "spinning" : ""),
+          style: vinylStyle,
+        },
+        h("div", { className: "vinyl-grooves" }),
+        h("div", {
+          className: "absolute inset-[14%] rounded-full border border-white/5 opacity-40",
+        }),
+        h("div", {
+          className: "absolute inset-[24%] rounded-full border border-white/5 opacity-30",
+        }),
+        h("div", {
+          className: "absolute inset-[34%] rounded-full border border-white/5 opacity-20",
+        }),
+        h(
+          "div",
+          {
+            className: "absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full flex items-center justify-center",
+            style: labelStyle,
+          },
+          h("div", {
+            className: "w-3 h-3 rounded-full bg-stone-950/90 ring-2 ring-white/20",
+          })
+        )
+      );
+    }
+
     function SpotifyWidget({ token, ambient = false, onLogin }) {
       const [data, setData] = useState(null);
+      const [albumPalette, setAlbumPalette] = useState([
+        "#f5f5f4",
+        "#a8a29e",
+        "#44403c",
+        "#0c0a09",
+      ]);
 
       const fetchNowPlaying = useCallback(async () => {
         if (!token) return;
@@ -772,6 +944,23 @@
       const track = data?.item;
       const isPlaying = data?.is_playing;
       const albumArt = track?.album?.images?.[0]?.url;
+
+      useEffect(() => {
+        let mounted = true;
+
+        if (!albumArt) {
+          setAlbumPalette(["#f5f5f4", "#a8a29e", "#44403c", "#0c0a09"]);
+          return;
+        }
+
+        extractAlbumPalette(albumArt).then((palette) => {
+          if (mounted) setAlbumPalette(palette);
+        });
+
+        return () => {
+          mounted = false;
+        };
+      }, [albumArt]);
 
       const control = async (action) => {
         if (!token) return;
@@ -822,76 +1011,91 @@
 
       const controlsLayer = h(
         "div",
-        {
+        { className: "absolute inset-0 z-10 pointer-events-none" },
+
+        h("div", {
           className:
-            "absolute bottom-0 left-0 right-0 h-2/5 bg-gradient-to-t from-black/90 via-black/40 to-transparent backdrop-blur-[2px] flex flex-col justify-end p-5 z-10",
-        },
+            "spotify-feather absolute inset-x-0 bottom-0 h-[58%] backdrop-blur-xl bg-gradient-to-t from-black/85 via-black/30 via-45% to-transparent",
+        }),
+
+        h("div", {
+          className:
+            "absolute inset-x-0 bottom-[42%] h-24 bg-gradient-to-t from-black/20 to-transparent blur-2xl opacity-80",
+        }),
+
         h(
           "div",
-          { className: "min-w-0 mb-3" },
+          {
+            className:
+              "absolute inset-x-0 bottom-0 p-5 flex flex-col justify-end pointer-events-auto",
+          },
           h(
-            "p",
-            { className: "text-[13px] font-bold text-white truncate tracking-tight" },
-            track?.name || "Stopped"
-          ),
-          h(
-            "p",
-            { className: "text-[10px] text-white/60 truncate mt-0.5 uppercase tracking-widest" },
-            track?.artists?.[0]?.name || "Spotify"
-          )
-        ),
-        h(
-          "div",
-          { className: "flex justify-center items-center gap-8" },
-          h(
-            "button",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                control("previous");
-              },
-              className: "text-white/60 hover:text-white transition-colors",
-            },
+            "div",
+            { className: "min-w-0 mb-3" },
             h(
-              "svg",
-              { width: 18, height: 18, fill: "currentColor", viewBox: "0 0 24 24" },
-              h("path", { d: "M6 6h2v12H6zm3.5 6 8.5 6V6z" })
+              "p",
+              { className: "text-[13px] font-bold text-white truncate tracking-tight" },
+              track?.name || "Stopped"
+            ),
+            h(
+              "p",
+              { className: "text-[10px] text-white/60 truncate mt-0.5 uppercase tracking-widest" },
+              track?.artists?.[0]?.name || "Spotify"
             )
           ),
           h(
-            "button",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                control(isPlaying ? "pause" : "play");
-              },
-              className: "text-white active:scale-90 transition-transform",
-            },
-            isPlaying
-              ? h(
-                  "svg",
-                  { width: 22, height: 22, fill: "currentColor", viewBox: "0 0 24 24" },
-                  h("path", { d: "M6 19h4V5H6v14zm8-14v14h4V5h-4z" })
-                )
-              : h(
-                  "svg",
-                  { width: 22, height: 22, fill: "currentColor", viewBox: "0 0 24 24" },
-                  h("path", { d: "M8 5v14l11-7z" })
-                )
-          ),
-          h(
-            "button",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                control("next");
-              },
-              className: "text-white/60 hover:text-white transition-colors",
-            },
+            "div",
+            { className: "flex justify-center items-center gap-8" },
             h(
-              "svg",
-              { width: 18, height: 18, fill: "currentColor", viewBox: "0 0 24 24" },
-              h("path", { d: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" })
+              "button",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  control("previous");
+                },
+                className: "text-white/60 hover:text-white transition-colors",
+              },
+              h(
+                "svg",
+                { width: 18, height: 18, fill: "currentColor", viewBox: "0 0 24 24" },
+                h("path", { d: "M6 6h2v12H6zm3.5 6 8.5 6V6z" })
+              )
+            ),
+            h(
+              "button",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  control(isPlaying ? "pause" : "play");
+                },
+                className: "text-white active:scale-90 transition-transform",
+              },
+              isPlaying
+                ? h(
+                    "svg",
+                    { width: 22, height: 22, fill: "currentColor", viewBox: "0 0 24 24" },
+                    h("path", { d: "M6 19h4V5H6v14zm8-14v14h4V5h-4z" })
+                  )
+                : h(
+                    "svg",
+                    { width: 22, height: 22, fill: "currentColor", viewBox: "0 0 24 24" },
+                    h("path", { d: "M8 5v14l11-7z" })
+                  )
+            ),
+            h(
+              "button",
+              {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  control("next");
+                },
+                className: "text-white/60 hover:text-white transition-colors",
+              },
+              h(
+                "svg",
+                { width: 18, height: 18, fill: "currentColor", viewBox: "0 0 24 24" },
+                h("path", { d: "M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" })
+              )
             )
           )
         )
@@ -901,23 +1105,38 @@
         return h(
           "div",
           { className: "flex flex-col items-center gap-8" },
+
           h(
             "div",
-            {
-              className:
-                "w-72 h-72 md:w-80 md:h-80 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8)] rounded-[48px] overflow-hidden ring-1 ring-white/10 bg-stone-100 dark:bg-stone-900",
-            },
-            albumArt
-              ? h("img", { src: albumArt, className: "w-full h-full object-contain" })
-              : h(
-                  "div",
-                  {
-                    className:
-                      "w-full h-full flex items-center justify-center text-stone-50 text-3xl",
-                  },
-                  "♫"
-                )
+            { className: "relative w-[26rem] h-[22rem] flex items-center justify-center" },
+
+            h(VinylRecord, {
+              isPlaying: !!isPlaying,
+              palette: albumPalette,
+            }),
+
+            h(
+              "div",
+              {
+                className:
+                  "relative z-10 w-72 h-72 md:w-80 md:h-80 shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8)] rounded-[48px] overflow-hidden ring-1 ring-white/10 bg-stone-100 dark:bg-stone-900",
+              },
+              albumArt
+                ? h("img", {
+                    src: albumArt,
+                    className: "w-full h-full object-contain",
+                  })
+                : h(
+                    "div",
+                    {
+                      className:
+                        "w-full h-full flex items-center justify-center text-stone-50 text-3xl",
+                    },
+                    "♫"
+                  )
+            )
           ),
+
           h(
             "div",
             { className: "text-center max-w-sm" },
@@ -995,7 +1214,7 @@
           ? h("img", {
               src: albumArt,
               className:
-                "absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105",
+                "absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 will-change-transform",
             })
           : h(
               "div",
