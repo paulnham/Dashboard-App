@@ -333,7 +333,7 @@ import {
 
 const { useState, useEffect, createElement: h } = React;
 
-/* ✅ YOUR FIREBASE CONFIG */
+/* ✅ FIREBASE CONFIG */
 const firebaseConfig = {
   apiKey: "AIzaSyAFoFYFNtDP-csMVqfFsrjTaqTEdzbAU5g",
   authDomain: "dashboard-app-c14b8.firebaseapp.com",
@@ -351,6 +351,17 @@ function App() {
   const [user, setUser] = useState(null);
   const [habits, setHabits] = useState([]);
   const [input, setInput] = useState("");
+
+  /* ✅ FIX: HIDE LOADER */
+  useEffect(() => {
+    const loader = document.getElementById("loader");
+    if (!loader) return;
+
+    loader.style.opacity = "0";
+    setTimeout(() => {
+      loader.style.display = "none";
+    }, 300);
+  }, []);
 
   /* 🔐 AUTH STATE */
   useEffect(() => {
@@ -373,8 +384,13 @@ function App() {
 
   /* 🔑 LOGIN */
   const login = async () => {
-    const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.error(err);
+      alert(err.message);
+    }
   };
 
   /* 🚪 LOGOUT */
