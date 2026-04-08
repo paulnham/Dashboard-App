@@ -350,6 +350,7 @@ function safeJSONParse(value, fallback) {
 
 /* ---------- APP ---------- */
 function App() {
+  console.log("App rendering...");
   const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem("zen_theme") === "dark");
   const [isFullscreenMode, setIsFullscreenMode] = useState(localStorage.getItem("zen_fullscreen") === "true");
 
