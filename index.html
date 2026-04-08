@@ -485,7 +485,10 @@ function App() {
 /* ---------- RENDER ---------- */
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(h(App));
-
+setTimeout(() => {
+  const loader = document.getElementById("loader");
+  if (loader) loader.style.display = "none";
+}, 1000);
 </script>
  
 </body>
