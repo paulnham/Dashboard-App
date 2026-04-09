@@ -319,8 +319,10 @@
     import {
       getAuth,
       onAuthStateChanged,
-      signInAnonymously,
       signInWithCustomToken,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut,
     } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import {
       getFirestore,
@@ -347,6 +349,7 @@
 
     const app = initializeApp(FIREBASE_CONFIG);
     const auth = getAuth(app);
+    const googleProvider = new GoogleAuthProvider();
     const db = getFirestore(app);
     const appId = "zen-productivity-dashboard";
 
@@ -1591,21 +1594,21 @@
       }, []);
 
       useEffect(() => {
-        if (!auth) return;
-        let unsubscribe = () => {};
+        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+          setUser(firebaseUser);
+        });
 
-        const initAuth = async () => {
+        (async () => {
           try {
             const customToken = typeof window.__initial_auth_token !== "undefined" ? window.__initial_auth_token : null;
-            if (customToken) await signInWithCustomToken(auth, customToken);
-            else await signInAnonymously(auth);
+            if (customToken) {
+              await signInWithCustomToken(auth, customToken);
+            }
           } catch (e) {
             console.warn("Auth initialization failed:", e);
           }
-          unsubscribe = onAuthStateChanged(auth, setUser);
-        };
+        })();
 
-        initAuth();
         return () => unsubscribe();
       }, []);
 
@@ -1931,6 +1934,24 @@
         });
 
         window.location.href = "https://accounts.spotify.com/authorize?" + params.toString();
+      };
+
+      const loginFirebase = async () => {
+        try {
+          await signInWithPopup(auth, googleProvider);
+        } catch (e) {
+          console.error("Firebase Google sign-in failed:", e);
+          alert("Could not sign in for sync. Please try again.");
+        }
+      };
+
+      const logoutFirebase = async () => {
+        try {
+          await signOut(auth);
+          setHabits(loadLocalHabits());
+        } catch (e) {
+          console.error("Firebase sign-out failed:", e);
+        }
       };
 
       const loginGoogle = () => requestGoogleAccessToken(true);
@@ -2331,6 +2352,18 @@
             }),
 
             h("div", { className: "flex items-center gap-2" },
+              !user &&
+                h("button", {
+                  onClick: loginFirebase,
+                  className: "text-[10px] font-bold bg-stone-800 text-white px-5 py-2.5 rounded-2xl shadow-sm hover:bg-stone-700 transition-all",
+                }, "SYNC LOGIN"),
+              !!user &&
+                h("button", {
+                  onClick: logoutFirebase,
+                  className: "text-[10px] font-bold bg-emerald-500 text-white px-5 py-2.5 rounded-2xl shadow-sm hover:bg-emerald-600 transition-all",
+                }, user.email ? "SYNCED" : "SIGNED IN"),
+              user?.email &&
+                h("span", { className: "text-[10px] font-bold text-stone-400 uppercase max-w-[180px] truncate" }, user.email),
               !googleAuth?.access_token &&
                 h("button", {
                   onClick: loginGoogle,
