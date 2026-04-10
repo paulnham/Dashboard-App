@@ -372,7 +372,10 @@
     }).catch(() => {});
 
     const GOOGLE_CLIENT_ID = "719863282782-9dnqtj2r6msq1d9cohf70gike1idq565.apps.googleusercontent.com";
-    const GOOGLE_SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks";
+    const GOOGLE_SCOPES =
+      "https://www.googleapis.com/auth/calendar.readonly " +
+      "https://www.googleapis.com/auth/tasks " +
+      "https://www.googleapis.com/auth/photospicker.mediaitems.readonly";
     const SPOTIFY_CLIENT_ID = "8d40f3a244f141ddb6be4e0e6d323b1a";
 
     const PHOTOS = [
@@ -451,7 +454,18 @@
       localStorage.removeItem("zen_google_auth");
       localStorage.removeItem("zen_google_token");
     }
+    function loadGooglePhotosSelection() {
+  return safeJSONParse(localStorage.getItem("dayboard_google_photos_selection") || "[]", []);
+}
 
+function saveGooglePhotosSelection(items) {
+  localStorage.setItem("dayboard_google_photos_selection", JSON.stringify(items || []));
+}
+
+function clearGooglePhotosSelection() {
+  localStorage.removeItem("dayboard_google_photos_selection");
+}
+    
     const generateRandomString = (length) => {
       const possible = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
       const values = crypto.getRandomValues(new Uint8Array(length));
@@ -1616,35 +1630,63 @@
       );
     }
 
-    function PhotoWidget() {
-      const [idx, setIdx] = useState(0);
+    function PhotoWidget({ googlePhotosItems = [], onOpenSettings }) {
+  const usablePhotos = googlePhotosItems.length
+    ? googlePhotosItems
+        .filter((item) => item.baseUrl && String(item.mimeType || "").startsWith("image/"))
+        .map((item) => item.baseUrl + "=w1600-h1600")
+    : PHOTOS;
 
-      return h(
-        "div",
-        { className: "relative h-full w-full group photo-card" },
-        h("img", {
-          src: PHOTOS[idx],
-          className: "absolute inset-0 w-full h-full object-cover grayscale-[40%] brightness-90 dark:brightness-50 transition-all duration-700",
-        }),
-        h(
-          "button",
-          {
-            onClick: (e) => {
-              e.stopPropagation();
-              setIdx((idx + 1) % PHOTOS.length);
-            },
-            className:
-              "absolute top-4 right-4 p-2 bg-black/20 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all active:scale-90",
-          },
-          h(
-            "svg",
-            { width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 3 },
-            h("path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }),
-            h("path", { d: "M21 3v5h-5" })
-          )
-        )
-      );
-    }
+  const [idx, setIdx] = useState(0);
+
+  useEffect(() => {
+    setIdx(0);
+  }, [usablePhotos.length]);
+
+  if (!usablePhotos.length) {
+    return h(
+      "div",
+      { className: "p-7 flex flex-col items-center justify-center h-full gap-3 text-center" },
+      h("div", {
+        className:
+          "w-16 h-16 bg-stone-100 dark:bg-stone-900 rounded-2xl flex items-center justify-center text-stone-300 text-2xl",
+      }, "🖼"),
+      h("p", { className: "text-xs font-bold text-stone-400 uppercase tracking-widest" }, "Photos"),
+      h("p", { className: "text-[11px] text-stone-400 dark:text-stone-500 italic" }, "Choose photos in Settings"),
+      onOpenSettings &&
+        h("button", {
+          onClick: onOpenSettings,
+          className:
+            "mt-2 px-4 py-2 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+        }, "OPEN SETTINGS")
+    );
+  }
+
+  return h(
+    "div",
+    { className: "relative h-full w-full group photo-card" },
+    h("img", {
+      src: usablePhotos[idx],
+      className:
+        "absolute inset-0 w-full h-full object-cover grayscale-[18%] brightness-95 dark:brightness-50 transition-all duration-700",
+    }),
+    h("button", {
+      onClick: (e) => {
+        e.stopPropagation();
+        setIdx((idx + 1) % usablePhotos.length);
+      },
+      className:
+        "absolute top-4 right-4 p-2 bg-black/20 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all active:scale-90",
+    },
+      h("svg", { width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 3 },
+        h("path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }),
+        h("path", { d: "M21 3v5h-5" })
+      )
+    ),
+    googlePhotosItems.length > 0 &&
+      h("div", { className: "auth-pill" }, "Google Photos")
+  );
+}
         function SleepModeOverlay({ isActive, spotifyAuth, setSpotifyAuth, onExit, onLogin }) {
       return h(
         "div",
@@ -1997,172 +2039,145 @@
 }
 
     function SettingsPage({
-      user,
-      googleAuth,
-      spotifyAuth,
-      googleErrorLabel,
-      onReconnectGoogle,
-      onReconnectSpotify,
-      onDisconnectGoogle,
-      onDisconnectSpotify,
-      onLoginFirebase,
-      onLogoutFirebase,
-      onNavigate,
-    }) {
-      const firebaseConnected = !!user;
-      const googleConnected = !!googleAuth?.access_token;
-      const spotifyConnected = !!spotifyAuth?.access_token;
+  user,
+  googleAuth,
+  spotifyAuth,
+  googleErrorLabel,
+  googlePhotosItems,
+  isPickingPhotos,
+  onReconnectGoogle,
+  onReconnectSpotify,
+  onDisconnectGoogle,
+  onDisconnectSpotify,
+  onLoginFirebase,
+  onLogoutFirebase,
+  onChooseGooglePhotos,
+  onClearGooglePhotos,
+  onNavigate,
+}) {
+  const firebaseConnected = !!user;
+  const googleConnected = !!googleAuth?.access_token;
+  const spotifyConnected = !!spotifyAuth?.access_token;
 
-      return h(
-        "div",
-        { className: "glass-card p-10 min-h-[500px]" },
-        h(
-          "div",
-          { className: "mb-12" },
-          h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Settings"),
-          h("p", { className: "text-[12px] text-stone-300 dark:text-stone-700 uppercase tracking-[0.4em] font-bold" }, "Connections & preferences")
+  return h("div", { className: "glass-card p-10 min-h-[500px]" },
+    h("div", { className: "mb-12" },
+      h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Settings"),
+      h("p", { className: "text-[12px] text-stone-300 dark:text-stone-700 uppercase tracking-[0.4em] font-bold" }, "Connections & preferences")
+    ),
+
+    h("div", { className: "space-y-2" },
+
+      h("div", { className: "settings-row" },
+        h("div", null,
+          h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Sync"),
+          h("p", { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
+            firebaseConnected
+              ? "Your habits sync across devices with your signed-in Firebase account."
+              : "Sign in here to sync habits across devices."
+          ),
+          user?.email &&
+            h("p", { className: "text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider mt-3" }, user.email)
         ),
-        h(
-          "div",
-          { className: "space-y-2" },
-          h(
-            "div",
-            { className: "settings-row" },
-            h(
-              "div",
-              null,
-              h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Sync"),
-              h(
-                "p",
-                { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
-                firebaseConnected
-                  ? "Your habits sync across devices with your signed-in Firebase account."
-                  : "Sign in here to sync habits across devices."
-              ),
-              user?.email &&
-                h("p", { className: "text-xs text-stone-400 dark:text-stone-500 font-bold uppercase tracking-wider mt-3" }, user.email)
-            ),
-            h(
-              "div",
-              { className: "flex items-center gap-3 shrink-0" },
-              h("span", { className: "settings-badge " + (firebaseConnected ? "ok" : "warn") }, firebaseConnected ? "Synced" : "Not synced"),
-              h(
-                "button",
-                {
-                  onClick: firebaseConnected ? onLogoutFirebase : onLoginFirebase,
-                  className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
-                },
-                firebaseConnected ? "SIGN OUT" : "SIGN IN"
-              )
-            )
-          ),
-          h(
-            "div",
-            { className: "settings-row" },
-            h(
-              "div",
-              null,
-              h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Google"),
-              h(
-                "p",
-                { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
-                googleConnected ? "Calendar and Tasks are connected." : "Reconnect to load events and tasks."
-              ),
-              googleErrorLabel &&
-                h("p", { className: "text-xs text-amber-500 font-bold uppercase tracking-wider mt-3" }, googleErrorLabel)
-            ),
-            h(
-              "div",
-              { className: "flex items-center gap-3 shrink-0" },
-              h("span", { className: "settings-badge " + (googleConnected ? "ok" : "warn") }, googleConnected ? "Connected" : "Reconnect"),
-              h(
-                "button",
-                {
-                  onClick: onReconnectGoogle,
-                  className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
-                },
-                googleConnected ? "REFRESH AUTH" : "CONNECT"
-              ),
-              googleConnected &&
-                h(
-                  "button",
-                  {
-                    onClick: onDisconnectGoogle,
-                    className:
-                      "px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-[10px] font-bold tracking-widest",
-                  },
-                  "DISCONNECT"
-                )
-            )
-          ),
-                    h(
-            "div",
-            { className: "settings-row" },
-            h(
-              "div",
-              null,
-              h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Spotify"),
-              h(
-                "p",
-                { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
-                spotifyConnected
-                  ? "Playback controls and Now Playing are connected."
-                  : "Reconnect to restore Spotify playback and track info."
-              )
-            ),
-            h(
-              "div",
-              { className: "flex items-center gap-3 shrink-0" },
-              h("span", { className: "settings-badge " + (spotifyConnected ? "ok" : "warn") }, spotifyConnected ? "Connected" : "Reconnect"),
-              h(
-                "button",
-                {
-                  onClick: onReconnectSpotify,
-                  className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
-                },
-                spotifyConnected ? "REAUTHORIZE" : "CONNECT"
-              ),
-              spotifyConnected &&
-                h(
-                  "button",
-                  {
-                    onClick: onDisconnectSpotify,
-                    className:
-                      "px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-[10px] font-bold tracking-widest",
-                  },
-                  "DISCONNECT"
-                )
-            )
-          ),
-          h(
-            "div",
-            { className: "settings-row" },
-            h(
-              "div",
-              null,
-              h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Dashboard"),
-              h(
-                "p",
-                { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
-                "Use the gear in the header any time you need to reconnect services."
-              )
-            ),
-            h(
-              "div",
-              { className: "shrink-0" },
-              h(
-                "button",
-                {
-                  onClick: () => onNavigate("home"),
-                  className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
-                },
-                "BACK HOME"
-              )
-            )
-          )
+        h("div", { className: "flex items-center gap-3 shrink-0" },
+          h("span", { className: "settings-badge " + (firebaseConnected ? "ok" : "warn") }, firebaseConnected ? "Synced" : "Not synced"),
+          h("button", {
+            onClick: firebaseConnected ? onLogoutFirebase : onLoginFirebase,
+            className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+          }, firebaseConnected ? "SIGN OUT" : "SIGN IN")
         )
-      );
-    }
+      ),
+
+      h("div", { className: "settings-row" },
+        h("div", null,
+          h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Google"),
+          h("p", { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
+            googleConnected
+              ? "Calendar, Tasks, and Photos picker access are connected."
+              : "Reconnect to load events, tasks, and choose photos."
+          ),
+          googleErrorLabel &&
+            h("p", { className: "text-xs text-amber-500 font-bold uppercase tracking-wider mt-3" }, googleErrorLabel)
+        ),
+        h("div", { className: "flex items-center gap-3 shrink-0" },
+          h("span", { className: "settings-badge " + (googleConnected ? "ok" : "warn") }, googleConnected ? "Connected" : "Reconnect"),
+          h("button", {
+            onClick: onReconnectGoogle,
+            className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+          }, googleConnected ? "REFRESH AUTH" : "CONNECT"),
+          googleConnected &&
+            h("button", {
+              onClick: onDisconnectGoogle,
+              className: "px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-[10px] font-bold tracking-widest",
+            }, "DISCONNECT")
+        )
+      ),
+
+      h("div", { className: "settings-row" },
+        h("div", null,
+          h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Google Photos"),
+          h("p", { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
+            googlePhotosItems.length > 0
+              ? `${googlePhotosItems.length} selected photo${googlePhotosItems.length === 1 ? "" : "s"} powering the photo widget.`
+              : "Choose photos from Google Photos for the photo widget."
+          )
+        ),
+        h("div", { className: "flex items-center gap-3 shrink-0" },
+          h("span", {
+            className: "settings-badge " + (googlePhotosItems.length > 0 ? "ok" : "warn"),
+          }, googlePhotosItems.length > 0 ? "Connected" : "Not set"),
+          h("button", {
+            onClick: onChooseGooglePhotos,
+            disabled: isPickingPhotos,
+            className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest disabled:opacity-60",
+          }, isPickingPhotos ? "LOADING..." : "CHOOSE PHOTOS"),
+          googlePhotosItems.length > 0 &&
+            h("button", {
+              onClick: onClearGooglePhotos,
+              className: "px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-[10px] font-bold tracking-widest",
+            }, "CLEAR")
+        )
+      ),
+
+      h("div", { className: "settings-row" },
+        h("div", null,
+          h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Spotify"),
+          h("p", { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
+            spotifyConnected
+              ? "Playback controls and Now Playing are connected."
+              : "Reconnect to restore Spotify playback and track info."
+          )
+        ),
+        h("div", { className: "flex items-center gap-3 shrink-0" },
+          h("span", { className: "settings-badge " + (spotifyConnected ? "ok" : "warn") }, spotifyConnected ? "Connected" : "Reconnect"),
+          h("button", {
+            onClick: onReconnectSpotify,
+            className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+          }, spotifyConnected ? "REAUTHORIZE" : "CONNECT"),
+          spotifyConnected &&
+            h("button", {
+              onClick: onDisconnectSpotify,
+              className: "px-5 py-2.5 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-[10px] font-bold tracking-widest",
+            }, "DISCONNECT")
+        )
+      ),
+
+      h("div", { className: "settings-row" },
+        h("div", null,
+          h("h3", { className: "text-xl font-semibold text-stone-800 dark:text-stone-100" }, "Dashboard"),
+          h("p", { className: "text-sm text-stone-400 dark:text-stone-500 mt-1" },
+            "Use the gear in the header any time you need to reconnect services."
+          )
+        ),
+        h("div", { className: "shrink-0" },
+          h("button", {
+            onClick: () => onNavigate("home"),
+            className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+          }, "BACK HOME")
+        )
+      )
+    )
+  );
+}
 
     function App() {
   const [user, setUser] = useState(null);
@@ -2194,7 +2209,9 @@
   const [isCreatingTask, setIsCreatingTask] = useState(false);
   const [googleErrorLabel, setGoogleErrorLabel] = useState("");
   const googleTokenClientRef = useRef(null);
-
+  const [googlePhotosItems, setGooglePhotosItems] = useState(loadGooglePhotosSelection());
+  const [isPickingPhotos, setIsPickingPhotos] = useState(false);
+      
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
@@ -2367,7 +2384,117 @@
     },
     [googleAuth, requestGoogleAccessToken]
   );
+const googlePhotosApiFetch = useCallback(async (url, options = {}) => {
+  if (!googleAuth?.access_token) throw new Error("Google is not connected");
 
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...(options.headers || {}),
+      Authorization: "Bearer " + googleAuth.access_token,
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (response.status === 401) {
+    clearGoogleAuth();
+    setGoogleAuth(null);
+    setGoogleErrorLabel("Reconnect Google");
+    throw new Error("Google Photos API 401");
+  }
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`Google Photos API ${response.status}: ${text || "request failed"}`);
+  }
+
+  return response;
+}, [googleAuth]);
+
+const pollGooglePhotosSession = useCallback(async (sessionId) => {
+  const maxAttempts = 60;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    const sessionRes = await googlePhotosApiFetch(
+      "https://photospicker.googleapis.com/v1/sessions/" + sessionId
+    );
+    const sessionData = await sessionRes.json();
+
+    if (sessionData.mediaItemsSet) {
+      let allItems = [];
+      let pageToken = "";
+
+      do {
+        const url =
+          "https://photospicker.googleapis.com/v1/mediaItems?sessionId=" +
+          encodeURIComponent(sessionId) +
+          (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+
+        const itemsRes = await googlePhotosApiFetch(url);
+        const itemsData = await itemsRes.json();
+
+        const normalized = (itemsData.mediaItems || []).map((item) => ({
+          id: item.id,
+          baseUrl: item.mediaFile?.baseUrl || "",
+          mimeType: item.mediaFile?.mimeType || "",
+          filename: item.mediaFile?.filename || "",
+        }));
+
+        allItems = [...allItems, ...normalized];
+        pageToken = itemsData.nextPageToken || "";
+      } while (pageToken);
+
+      setGooglePhotosItems(allItems);
+      saveGooglePhotosSelection(allItems);
+
+      try {
+        await googlePhotosApiFetch(
+          "https://photospicker.googleapis.com/v1/sessions/" + sessionId,
+          { method: "DELETE" }
+        );
+      } catch {}
+
+      return allItems;
+    }
+  }
+
+  throw new Error("Timed out waiting for Google Photos selection");
+}, [googlePhotosApiFetch]);
+
+const chooseGooglePhotos = async () => {
+  if (!googleAuth?.access_token) {
+    loginGoogle();
+    return;
+  }
+
+  try {
+    setIsPickingPhotos(true);
+
+    const createRes = await googlePhotosApiFetch(
+      "https://photospicker.googleapis.com/v1/sessions",
+      {
+        method: "POST",
+        body: JSON.stringify({}),
+      }
+    );
+
+    const sessionData = await createRes.json();
+
+    if (!sessionData.id || !sessionData.pickerUri) {
+      throw new Error("Could not create Google Photos picker session");
+    }
+
+    window.open(sessionData.pickerUri, "_blank", "noopener,noreferrer");
+    await pollGooglePhotosSession(sessionData.id);
+  } catch (e) {
+    console.error("Google Photos picker failed:", e);
+    alert("Could not load Google Photos picker. Please try again.");
+  } finally {
+    setIsPickingPhotos(false);
+  }
+};
   const updateHabitInCloud = async (id, updatedData) => {
     if (db && user) {
       const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", String(id));
@@ -2606,13 +2733,15 @@
   const loginGoogle = () => requestGoogleAccessToken(true);
 
   const disconnectGoogle = () => {
-    clearGoogleAuth();
-    setGoogleAuth(null);
-    setEvents([]);
-    setTasks([]);
-    setCalendars([]);
-    setGoogleErrorLabel("");
-  };
+  clearGoogleAuth();
+  setGoogleAuth(null);
+  setEvents([]);
+  setTasks([]);
+  setCalendars([]);
+  setGoogleErrorLabel("");
+  clearGooglePhotosSelection();
+  setGooglePhotosItems([]);
+};
 
   const disconnectSpotify = () => {
     clearSpotifyAuth();
@@ -2685,7 +2814,15 @@
     { id: "tasks", component: TasksWidget },
     { id: "notes", component: NotesWidget },
     { id: "habits", component: HabitWidget },
-    { id: "photo", component: PhotoWidget },
+    {
+  id: "photo",
+  component: (props) =>
+    h(PhotoWidget, {
+      ...props,
+      googlePhotosItems,
+      onOpenSettings: () => setActiveTab("settings"),
+    }),
+},
   ];
 
   const gridClass = isFullscreenMode
@@ -3029,19 +3166,26 @@
     });
 
   const renderSettings = () =>
-    h(SettingsPage, {
-      user,
-      googleAuth,
-      spotifyAuth,
-      googleErrorLabel,
-      onReconnectGoogle: loginGoogle,
-      onReconnectSpotify: loginSpotify,
-      onDisconnectGoogle: disconnectGoogle,
-      onDisconnectSpotify: disconnectSpotify,
-      onLoginFirebase: loginFirebase,
-      onLogoutFirebase: logoutFirebase,
-      onNavigate: setActiveTab,
-    });
+  h(SettingsPage, {
+    user,
+    googleAuth,
+    spotifyAuth,
+    googleErrorLabel,
+    googlePhotosItems,
+    isPickingPhotos,
+    onReconnectGoogle: loginGoogle,
+    onReconnectSpotify: loginSpotify,
+    onDisconnectGoogle: disconnectGoogle,
+    onDisconnectSpotify: disconnectSpotify,
+    onLoginFirebase: loginFirebase,
+    onLogoutFirebase: logoutFirebase,
+    onChooseGooglePhotos: chooseGooglePhotos,
+    onClearGooglePhotos: () => {
+      clearGooglePhotosSelection();
+      setGooglePhotosItems([]);
+    },
+    onNavigate: setActiveTab,
+  });
 
   const getPageContent = () => {
     if (activeTab === "home") return renderHome();
