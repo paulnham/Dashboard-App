@@ -1323,7 +1323,7 @@
       );
     }
 
-    function CalendarGrid({ viewDate, onMonthChange, onOpenFilter, events, onDateClick }) {
+   function CalendarGrid({ viewDate, onMonthChange, onOpenFilter, events, onDateClick }) {
   const y = viewDate?.getFullYear() || new Date().getFullYear();
   const m = viewDate?.getMonth() ?? new Date().getMonth();
   const start = new Date(y, m, 1).getDay();
@@ -1344,43 +1344,86 @@
 
   const changeMonth = (offset) => onMonthChange(new Date(y, m + offset, 1));
 
-  return h("div", { className: "p-6 flex flex-col h-full min-h-0 overflow-hidden" },
-    h("div", { className: "flex justify-between items-center mb-4 flex-shrink-0" },
-      h("div", { className: "flex items-center gap-2" },
-        h("button", {
-          onClick: () => changeMonth(-1),
-          className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
-        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-          h("path", { d: "M15 18l-6-6 6-6" })
-        )),
-        h("h3", {
-          className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest min-w-[70px] text-center",
-        }, new Date(y, m).toLocaleDateString("en-US", { month: "short", year: "numeric" })),
-        h("button", {
-          onClick: () => changeMonth(1),
-          className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
-        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-          h("path", { d: "M9 18l6-6-6-6" })
-        ))
+  return h(
+    "div",
+    { className: "p-6 flex flex-col h-full overflow-hidden" },
+
+    h(
+      "div",
+      { className: "flex justify-between items-center mb-4 shrink-0" },
+      h(
+        "div",
+        { className: "flex items-center gap-2" },
+        h(
+          "button",
+          {
+            onClick: () => changeMonth(-1),
+            className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
+          },
+          h(
+            "svg",
+            { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+            h("path", { d: "M15 18l-6-6 6-6" })
+          )
+        ),
+        h(
+          "h3",
+          { className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest min-w-[70px] text-center" },
+          new Date(y, m).toLocaleDateString("en-US", { month: "short", year: "numeric" })
+        ),
+        h(
+          "button",
+          {
+            onClick: () => changeMonth(1),
+            className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
+          },
+          h(
+            "svg",
+            { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+            h("path", { d: "M9 18l6-6-6-6" })
+          )
+        )
       ),
-      h("div", { className: "flex gap-3 items-center" },
-        h("button", {
-          onClick: onOpenFilter,
-          className: "text-stone-300 hover:text-stone-600 transition-colors",
-        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-          h("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
-        )),
-        h("button", {
-          onClick: () => onMonthChange(new Date()),
-          className: "text-[9px] font-bold text-stone-400 hover:text-stone-800 uppercase",
-        }, "Today")
+      h(
+        "div",
+        { className: "flex gap-3 items-center" },
+        h(
+          "button",
+          {
+            onClick: onOpenFilter,
+            className: "text-stone-300 hover:text-stone-600 transition-colors",
+          },
+          h(
+            "svg",
+            { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+            h("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
+          )
+        ),
+        h(
+          "button",
+          {
+            onClick: () => onMonthChange(new Date()),
+            className: "text-[9px] font-bold text-stone-400 hover:text-stone-800 uppercase",
+          },
+          "Today"
+        )
       )
     ),
-    h("div", { className: "grid grid-cols-7 gap-1 text-center flex-1" },
-      ["S","M","T","W","T","F","S"].map((d) => h("span", { key: d, className: "text-[9px] font-bold text-stone-200" }, d)),
+
+    h(
+      "div",
+      { className: "grid grid-cols-7 gap-y-3 gap-x-1 text-center content-start" },
+
+      ["S", "M", "T", "W", "T", "F", "S"].map((d) =>
+        h("span", { key: d, className: "text-[9px] font-bold text-stone-200 pb-2" }, d)
+      ),
+
       cells.map((day, i) => {
         const hasEvent = day && eventDaysSet.has(day);
-        return h("div", {
+
+        return h(
+          "div",
+          {
             key: i,
             onClick: () => {
               if (hasEvent) {
@@ -1391,18 +1434,28 @@
                 onDateClick(dayEvents, new Date(y, m, day));
               }
             },
-            className: "relative flex items-center justify-center text-[11px] " + (hasEvent ? "cursor-pointer hover:bg-stone-50 dark:hover:bg-white/5 rounded-full" : ""),
+            className:
+              "relative h-14 flex items-center justify-center text-[11px] " +
+              (hasEvent ? "cursor-pointer hover:bg-stone-50 dark:hover:bg-white/5 rounded-full" : ""),
           },
-          day && h("span", {
-            className: `w-6 h-6 flex items-center justify-center rounded-full ${
-              day === new Date().getDate() &&
-              m === new Date().getMonth() &&
-              y === new Date().getFullYear()
-                ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-950 font-bold"
-                : "text-stone-600 dark:text-stone-400"
-            }`,
-          }, day),
-          hasEvent && h("div", { className: "absolute bottom-0.5 w-0.5 h-0.5 bg-stone-300 dark:bg-stone-700 rounded-full" })
+          day &&
+            h(
+              "span",
+              {
+                className: `w-8 h-8 flex items-center justify-center rounded-full ${
+                  day === new Date().getDate() &&
+                  m === new Date().getMonth() &&
+                  y === new Date().getFullYear()
+                    ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-950 font-bold"
+                    : "text-stone-600 dark:text-stone-400"
+                }`,
+              },
+              day
+            ),
+          hasEvent &&
+            h("div", {
+              className: "absolute bottom-2 w-0.5 h-0.5 bg-stone-300 dark:bg-stone-700 rounded-full",
+            })
         );
       })
     )
