@@ -2437,14 +2437,15 @@ const pollGooglePhotosSession = useCallback(async (sessionId) => {
       } while (pageToken);
 
       setGooglePhotosItems(allItems);
-      saveGooglePhotosSelection(allItems);
+saveGooglePhotosSelection(allItems);
+console.log("Google Photos selected:", allItems);
 
-      try {
-        await googlePhotosApiFetch(
-          "https://photospicker.googleapis.com/v1/sessions/" + sessionId,
-          { method: "DELETE" }
-        );
-      } catch {}
+try {
+  await googlePhotosApiFetch(
+    "https://photospicker.googleapis.com/v1/sessions/" + sessionId,
+    { method: "DELETE" }
+  );
+} catch {}
 
       return allItems;
     }
