@@ -2150,1071 +2150,1061 @@
     }
 
     function App() {
-      const [user, setUser] = useState(null);
-      const [googleAuth, setGoogleAuth] = useState(loadGoogleAuth());
-      const [spotifyAuth, setSpotifyAuth] = useState(loadSpotifyAuth());
-      const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem("zen_theme") === "dark");
-      const [isIdle, setIsIdle] = useState(false);
-      const [activeTab, setActiveTab] = useState("home");
-      const [isFullscreenMode, setIsFullscreenMode] = useState(localStorage.getItem("zen_fullscreen") === "true");
-      const [habits, setHabits] = useState(loadLocalHabits());
-      const [events, setEvents] = useState([]);
-      const [tasks, setTasks] = useState([]);
-      const [calendars, setCalendars] = useState([]);
-      const [selectedCalIds, setSelectedCalIds] = useState(() => safeJSONParse(localStorage.getItem("zen_selected_calendars") || "[]", []));
-      const [viewDate, setViewDate] = useState(new Date());
-      const [weatherData, setWeatherData] = useState(null);
-      const [locationLabel, setLocationLabel] = useState("Santa Clara");
-      const [coords, setCoords] = useState({ lat: 37.3541, lon: -121.9552 });
-      const [isCalFilterOpen, setIsCalFilterOpen] = useState(false);
-      const [showHabitForm, setShowHabitForm] = useState(false);
-      const [newHabitName, setNewHabitName] = useState("");
-      const [newHabitGoal, setNewHabitGoal] = useState(4);
-      const [selectedDayEvents, setSelectedDayEvents] = useState(null);
-      const [selectedDayDate, setSelectedDayDate] = useState(null);
-      const [calendarSelectedDate, setCalendarSelectedDate] = useState(null);
-      const [newTaskTitle, setNewTaskTitle] = useState("");
-      const [isCreatingTask, setIsCreatingTask] = useState(false);
-      const [googleErrorLabel, setGoogleErrorLabel] = useState("");
-      const googleTokenClientRef = useRef(null);
+  const [user, setUser] = useState(null);
+  const [googleAuth, setGoogleAuth] = useState(loadGoogleAuth());
+  const [spotifyAuth, setSpotifyAuth] = useState(loadSpotifyAuth());
+  const [isDarkMode, setIsDarkMode] = useState(localStorage.getItem("zen_theme") === "dark");
+  const [isIdle, setIsIdle] = useState(false);
+  const [activeTab, setActiveTab] = useState("home");
+  const [isFullscreenMode, setIsFullscreenMode] = useState(localStorage.getItem("zen_fullscreen") === "true");
+  const [habits, setHabits] = useState(loadLocalHabits());
+  const [events, setEvents] = useState([]);
+  const [tasks, setTasks] = useState([]);
+  const [calendars, setCalendars] = useState([]);
+  const [selectedCalIds, setSelectedCalIds] = useState(() =>
+    safeJSONParse(localStorage.getItem("zen_selected_calendars") || "[]", [])
+  );
+  const [viewDate, setViewDate] = useState(new Date());
+  const [weatherData, setWeatherData] = useState(null);
+  const [locationLabel, setLocationLabel] = useState("Santa Clara");
+  const [coords, setCoords] = useState({ lat: 37.3541, lon: -121.9552 });
+  const [isCalFilterOpen, setIsCalFilterOpen] = useState(false);
+  const [showHabitForm, setShowHabitForm] = useState(false);
+  const [newHabitName, setNewHabitName] = useState("");
+  const [newHabitGoal, setNewHabitGoal] = useState(4);
+  const [selectedDayEvents, setSelectedDayEvents] = useState(null);
+  const [selectedDayDate, setSelectedDayDate] = useState(null);
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [isCreatingTask, setIsCreatingTask] = useState(false);
+  const [googleErrorLabel, setGoogleErrorLabel] = useState("");
+  const googleTokenClientRef = useRef(null);
 
-      useEffect(() => {
-        if (!("geolocation" in navigator)) return;
-        navigator.geolocation.getCurrentPosition(
-          async (position) => {
-            const { latitude, longitude } = position.coords;
-            setCoords({ lat: latitude, lon: longitude });
-
-            try {
-              const res = await fetch(
-                "https://nominatim.openstreetmap.org/reverse?lat=" + latitude + "&lon=" + longitude + "&format=json"
-              );
-              const data = await res.json();
-              const city =
-                data?.address?.city ||
-                data?.address?.town ||
-                data?.address?.village ||
-                data?.address?.suburb ||
-                "Current Location";
-              setLocationLabel(city);
-            } catch {
-              setLocationLabel("Current Location");
-            }
-          },
-          () => {}
-        );
-      }, []);
-
-      useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-          setUser(firebaseUser);
-        });
-
-        (async () => {
-          try {
-            const customToken =
-              typeof window.__initial_auth_token !== "undefined" ? window.__initial_auth_token : null;
-            if (customToken) {
-              await signInWithCustomToken(auth, customToken);
-            }
-          } catch (e) {
-            console.warn("Auth initialization failed:", e);
-          }
-        })();
-
-        return () => unsubscribe();
-      }, []);
-
-      useEffect(() => {
-        if (!db || !user) {
-          setHabits(loadLocalHabits());
-          return;
-        }
-
-        const habitsCollection = collection(db, "artifacts", appId, "users", user.uid, "habits");
-
-        const migrate = async () => {
-          try {
-            const localHabits = loadLocalHabits();
-            if (localHabits.length > 0) {
-              const existingCheck = await getDoc(doc(habitsCollection, String(localHabits[0].id)));
-              if (!existingCheck.exists()) {
-                for (const habit of localHabits) {
-                  await setDoc(doc(habitsCollection, String(habit.id)), habit);
-                }
-              }
-            }
-          } catch (e) {
-            console.warn("Migration failed:", e);
-          }
-        };
-
-        migrate();
-
-        const unsubscribe = onSnapshot(
-          habitsCollection,
-          (snapshot) => {
-            const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setHabits(list);
-          },
-          (err) => {
-            console.error(err);
-            setHabits(loadLocalHabits());
-          }
-        );
-
-        return () => unsubscribe();
-      }, [user]);
-
-      useEffect(() => {
-        const initGoogleClient = () => {
-          if (window.google?.accounts?.oauth2) {
-            googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
-              client_id: GOOGLE_CLIENT_ID,
-              scope: GOOGLE_SCOPES,
-              callback: (resp) => {
-                if (resp?.access_token) {
-                  const next = {
-                    access_token: resp.access_token,
-                    expires_at: nowMs() + ((resp.expires_in || 3600) * 1000) - 60000,
-                    scope: resp.scope || GOOGLE_SCOPES,
-                    token_type: resp.token_type || "Bearer",
-                  };
-                  setGoogleAuth(next);
-                  saveGoogleAuth(next);
-                  setGoogleErrorLabel("");
-                }
-              },
-            });
-            return true;
-          }
-          return false;
-        };
-
-        if (initGoogleClient()) return;
-
-        const interval = setInterval(() => {
-          if (initGoogleClient()) clearInterval(interval);
-        }, 300);
-
-        setTimeout(() => clearInterval(interval), 10000);
-        return () => clearInterval(interval);
-      }, []);
-
-      const requestGoogleAccessToken = useCallback((interactive = true) => {
-        if (!window.google?.accounts?.oauth2 || !googleTokenClientRef.current) {
-          alert("Google Identity Services has not loaded yet. Please try again.");
-          return;
-        }
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        setCoords({ lat: latitude, lon: longitude });
 
         try {
-          googleTokenClientRef.current.requestAccessToken({
-            prompt: interactive ? "consent" : "",
-          });
-        } catch (e) {
-          console.warn("Google token request failed:", e);
-          if (!interactive) setGoogleErrorLabel("Reconnect Google");
-        }
-      }, []);
-
-      const googleApiFetch = useCallback(
-        async (url, options = {}, retry = true) => {
-          if (!googleAuth?.access_token) throw new Error("Google is not connected");
-
-          const response = await fetch(url, {
-            ...options,
-            headers: {
-              ...(options.headers || {}),
-              Authorization: "Bearer " + googleAuth.access_token,
-            },
-          });
-
-          if (response.status === 401) {
-            clearGoogleAuth();
-            setGoogleAuth(null);
-            setGoogleErrorLabel("Reconnect Google");
-            if (retry) requestGoogleAccessToken(false);
-            throw new Error("Google API 401");
-          }
-
-          if (!response.ok) {
-            const text = await response.text().catch(() => "");
-            throw new Error(`Google API ${response.status}: ${text || "request failed"}`);
-          }
-
-          return response;
-        },
-        [googleAuth, requestGoogleAccessToken]
-      );
-            const updateHabitInCloud = async (id, updatedData) => {
-        if (db && user) {
-          const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", String(id));
-          await updateDoc(habitDoc, updatedData);
-          return;
-        }
-        const next = habits.map((h) => (String(h.id) === String(id) ? { ...h, ...updatedData } : h));
-        setHabits(next);
-        saveLocalHabits(next);
-      };
-
-      const addHabitToCloud = async (name, goal) => {
-        const id = Date.now().toString();
-        const newHabit = { id, name, goal, completions: [] };
-
-        if (db && user) {
-          const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", id);
-          await setDoc(habitDoc, newHabit);
-          return;
-        }
-
-        const next = [...habits, newHabit];
-        setHabits(next);
-        saveLocalHabits(next);
-      };
-
-      const deleteHabitFromCloud = async (id) => {
-        if (db && user) {
-          const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", String(id));
-          await deleteDoc(habitDoc);
-          return;
-        }
-        const next = habits.filter((h) => String(h.id) !== String(id));
-        setHabits(next);
-        saveLocalHabits(next);
-      };
-
-      useEffect(() => {
-        const handleSpotifyToken = async () => {
-          const params = new URLSearchParams(window.location.search);
-          const code = params.get("code");
-          const codeVerifier = localStorage.getItem("spotify_code_verifier");
-
-          if (code && codeVerifier) {
-            try {
-              const data = await spotifyTokenRequest({
-                client_id: SPOTIFY_CLIENT_ID,
-                grant_type: "authorization_code",
-                code,
-                redirect_uri: window.location.origin + window.location.pathname,
-                code_verifier: codeVerifier,
-              });
-
-              if (data.access_token) {
-                const next = {
-                  access_token: data.access_token,
-                  refresh_token: data.refresh_token || null,
-                  token_type: data.token_type || "Bearer",
-                  scope: data.scope || "",
-                  expires_at: nowMs() + ((data.expires_in || 3600) * 1000) - 60000,
-                };
-                setSpotifyAuth(next);
-                saveSpotifyAuth(next);
-                window.history.replaceState({}, document.title, window.location.pathname);
-              }
-            } catch (e) {
-              console.warn("Spotify auth exchange failed:", e);
-              clearSpotifyAuth();
-              setSpotifyAuth(null);
-            }
-          }
-        };
-        handleSpotifyToken();
-      }, []);
-
-      useEffect(() => {
-        const loader = document.getElementById("loader");
-        if (!loader) return;
-        requestAnimationFrame(() => {
-          loader.style.opacity = "0";
-          setTimeout(() => {
-            loader.style.display = "none";
-          }, 300);
-        });
-      }, []);
-
-      useEffect(() => {
-        document.documentElement.classList.toggle("dark", isDarkMode);
-        document.body.className = isDarkMode ? "dark" : "light";
-        localStorage.setItem("zen_theme", isDarkMode ? "dark" : "light");
-      }, [isDarkMode]);
-
-      useEffect(() => {
-        const fetchWeather = async () => {
-          try {
-            const res = await fetch(
-              "https://api.open-meteo.com/v1/forecast?latitude=" +
-                coords.lat +
-                "&longitude=" +
-                coords.lon +
-                "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto"
-            );
-            if (!res.ok) return;
-            setWeatherData(await res.json());
-          } catch {}
-        };
-
-        fetchWeather();
-        const intervalId = setInterval(fetchWeather, 1800000);
-        return () => clearInterval(intervalId);
-      }, [coords]);
-
-      const fetchGoogleData = useCallback(async () => {
-        if (!googleAuth?.access_token) return;
-
-        try {
-          const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).toISOString();
-
-          let calendarItems = calendars;
-          if (calendarItems.length === 0) {
-            const listRes = await googleApiFetch("https://www.googleapis.com/calendar/v3/users/me/calendarList");
-            const listData = await listRes.json();
-            if (listData.items) {
-              calendarItems = listData.items;
-              setCalendars(listData.items);
-            }
-          }
-
-          const ids = selectedCalIds.length > 0 ? selectedCalIds : calendarItems.map((c) => c.id);
-
-          if (ids.length > 0) {
-            const results = await Promise.all(
-              ids.map((id) =>
-                googleApiFetch(
-                  "https://www.googleapis.com/calendar/v3/calendars/" +
-                    encodeURIComponent(id) +
-                    "/events?timeMin=" +
-                    start +
-                    "&singleEvents=true&orderBy=startTime"
-                )
-                  .then((r) => r.json())
-                  .catch(() => ({ items: [] }))
-              )
-            );
-
-            const merged = results
-              .flatMap((r) => r.items || [])
-              .map((ev) => ({
-                title: ev.summary || "Untitled",
-                rawDate: ev.start?.dateTime || ev.start?.date,
-                time: ev.start?.dateTime
-                  ? new Date(ev.start.dateTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                  : "All Day",
-                location: ev.location || "",
-                notes: ev.description || "",
-              }))
-              .filter((e) => e.rawDate)
-              .sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
-
-            setEvents(merged);
-          }
-
-          const resT = await googleApiFetch(
-            "https://www.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=10"
+          const res = await fetch(
+            "https://nominatim.openstreetmap.org/reverse?lat=" +
+              latitude +
+              "&lon=" +
+              longitude +
+              "&format=json"
           );
-          const dT = await resT.json();
-          setTasks(dT.items ? dT.items.map((tk) => ({ id: tk.id, title: tk.title })) : []);
-          setGoogleErrorLabel("");
-        } catch (e) {
-          console.warn("Google data fetch failed:", e);
+          const data = await res.json();
+          const city =
+            data?.address?.city ||
+            data?.address?.town ||
+            data?.address?.village ||
+            data?.address?.suburb ||
+            "Current Location";
+          setLocationLabel(city);
+        } catch {
+          setLocationLabel("Current Location");
         }
-      }, [googleAuth, googleApiFetch, viewDate, calendars, selectedCalIds]);
+      },
+      () => {}
+    );
+  }, []);
 
-      useEffect(() => {
-        if (googleAuth?.access_token) fetchGoogleData();
-      }, [googleAuth, fetchGoogleData]);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
+    });
 
-      const createGoogleTask = async () => {
-        if (!googleAuth?.access_token || !newTaskTitle.trim() || isCreatingTask) return;
-
-        try {
-          setIsCreatingTask(true);
-          await googleApiFetch("https://www.googleapis.com/tasks/v1/lists/@default/tasks", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title: newTaskTitle.trim() }),
-          });
-          setNewTaskTitle("");
-          await fetchGoogleData();
-        } catch (err) {
-          console.error("Task creation failed:", err);
-          alert("Could not create task. Please reconnect Google and try again.");
-        } finally {
-          setIsCreatingTask(false);
+    (async () => {
+      try {
+        const customToken =
+          typeof window.__initial_auth_token !== "undefined" ? window.__initial_auth_token : null;
+        if (customToken) {
+          await signInWithCustomToken(auth, customToken);
         }
-      };
+      } catch (e) {
+        console.warn("Auth initialization failed:", e);
+      }
+    })();
 
-      const loginSpotify = async () => {
-        const codeVerifier = generateRandomString(128);
-        const hashed = await sha256(codeVerifier);
-        const codeChallenge = base64urlencode(hashed);
+    return () => unsubscribe();
+  }, []);
 
-        localStorage.setItem("spotify_code_verifier", codeVerifier);
+  useEffect(() => {
+    if (!db || !user) {
+      setHabits(loadLocalHabits());
+      return;
+    }
 
-        const redirectUri = window.location.origin + window.location.pathname;
-        const params = new URLSearchParams({
-          client_id: SPOTIFY_CLIENT_ID,
-          response_type: "code",
-          redirect_uri: redirectUri,
-          code_challenge_method: "S256",
-          code_challenge: codeChallenge,
-          scope: "user-read-currently-playing user-read-playback-state user-modify-playback-state",
+    const habitsCollection = collection(db, "artifacts", appId, "users", user.uid, "habits");
+
+    const migrate = async () => {
+      try {
+        const localHabits = loadLocalHabits();
+        if (localHabits.length > 0) {
+          const existingCheck = await getDoc(doc(habitsCollection, String(localHabits[0].id)));
+          if (!existingCheck.exists()) {
+            for (const habit of localHabits) {
+              await setDoc(doc(habitsCollection, String(habit.id)), habit);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("Migration failed:", e);
+      }
+    };
+
+    migrate();
+
+    const unsubscribe = onSnapshot(
+      habitsCollection,
+      (snapshot) => {
+        const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setHabits(list);
+      },
+      (err) => {
+        console.error(err);
+        setHabits(loadLocalHabits());
+      }
+    );
+
+    return () => unsubscribe();
+  }, [user]);
+
+  useEffect(() => {
+    const initGoogleClient = () => {
+      if (window.google?.accounts?.oauth2) {
+        googleTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: GOOGLE_SCOPES,
+          callback: (resp) => {
+            if (resp?.access_token) {
+              const next = {
+                access_token: resp.access_token,
+                expires_at: nowMs() + ((resp.expires_in || 3600) * 1000) - 60000,
+                scope: resp.scope || GOOGLE_SCOPES,
+                token_type: resp.token_type || "Bearer",
+              };
+              setGoogleAuth(next);
+              saveGoogleAuth(next);
+              setGoogleErrorLabel("");
+            }
+          },
         });
+        return true;
+      }
+      return false;
+    };
 
-        window.location.href = "https://accounts.spotify.com/authorize?" + params.toString();
-      };
+    if (initGoogleClient()) return;
 
-      const loginFirebase = async () => {
-        try {
-          await signInWithPopup(auth, googleProvider);
-        } catch (e) {
-          console.error("Firebase Google sign-in failed:", e);
-          alert("Could not sign in for sync. Please try again.");
-        }
-      };
+    const interval = setInterval(() => {
+      if (initGoogleClient()) clearInterval(interval);
+    }, 300);
 
-      const logoutFirebase = async () => {
-        try {
-          await signOut(auth);
-          setHabits(loadLocalHabits());
-        } catch (e) {
-          console.error("Firebase sign-out failed:", e);
-        }
-      };
+    setTimeout(() => clearInterval(interval), 10000);
+    return () => clearInterval(interval);
+  }, []);
 
-      const loginGoogle = () => requestGoogleAccessToken(true);
+  const requestGoogleAccessToken = useCallback((interactive = true) => {
+    if (!window.google?.accounts?.oauth2 || !googleTokenClientRef.current) {
+      alert("Google Identity Services has not loaded yet. Please try again.");
+      return;
+    }
 
-      const disconnectGoogle = () => {
+    try {
+      googleTokenClientRef.current.requestAccessToken({
+        prompt: interactive ? "consent" : "",
+      });
+    } catch (e) {
+      console.warn("Google token request failed:", e);
+      if (!interactive) setGoogleErrorLabel("Reconnect Google");
+    }
+  }, []);
+
+  const googleApiFetch = useCallback(
+    async (url, options = {}, retry = true) => {
+      if (!googleAuth?.access_token) throw new Error("Google is not connected");
+
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...(options.headers || {}),
+          Authorization: "Bearer " + googleAuth.access_token,
+        },
+      });
+
+      if (response.status === 401) {
         clearGoogleAuth();
         setGoogleAuth(null);
-        setEvents([]);
-        setTasks([]);
-        setCalendars([]);
-        setGoogleErrorLabel("");
-      };
+        setGoogleErrorLabel("Reconnect Google");
+        if (retry) requestGoogleAccessToken(false);
+        throw new Error("Google API 401");
+      }
 
-      const disconnectSpotify = () => {
-        clearSpotifyAuth();
-        setSpotifyAuth(null);
-      };
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`Google API ${response.status}: ${text || "request failed"}`);
+      }
 
-      const toggleFullscreen = () => {
-        const next = !isFullscreenMode;
-        setIsFullscreenMode(next);
-        localStorage.setItem("zen_fullscreen", String(next));
-      };
-            const sharedProps = {
-        googleAuth,
-        spotifyAuth,
-        setSpotifyAuth,
-        weatherData,
-        viewDate,
-        habits,
-        events,
-        tasks,
-        locationLabel,
-        newTaskTitle,
-        setNewTaskTitle,
-        isCreatingTask,
-        onCreateTask: createGoogleTask,
-        onNavigate: setActiveTab,
-        onMonthChange: setViewDate,
-        onOpenFilter: () => setIsCalFilterOpen(true),
-        onToggleHabitCompletion: (id, dateStr) => {
-          const habit = habits.find((h) => String(h.id) === String(id));
-          if (!habit) return;
-          const completions = habit.completions || [];
-          const nextCompletions = completions.includes(dateStr)
-            ? completions.filter((c) => c !== dateStr)
-            : [...completions, dateStr];
-          updateHabitInCloud(id, { completions: nextCompletions });
-        },
-        onDateClick: (dayEvents, date) => {
-          setSelectedDayEvents(dayEvents);
-          setSelectedDayDate(date);
-        },
-        onToggleTask: async (id) => {
-          if (!googleAuth?.access_token) return;
-          try {
-            await googleApiFetch("https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + id, {
-              method: "PATCH",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ status: "completed" }),
-            });
-            fetchGoogleData();
-          } catch (e) {
-            console.warn("Task toggle failed:", e);
+      return response;
+    },
+    [googleAuth, requestGoogleAccessToken]
+  );
+
+  const updateHabitInCloud = async (id, updatedData) => {
+    if (db && user) {
+      const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", String(id));
+      await updateDoc(habitDoc, updatedData);
+      return;
+    }
+    const next = habits.map((h) => (String(h.id) === String(id) ? { ...h, ...updatedData } : h));
+    setHabits(next);
+    saveLocalHabits(next);
+  };
+
+  const addHabitToCloud = async (name, goal) => {
+    const id = Date.now().toString();
+    const newHabit = { id, name, goal, completions: [] };
+
+    if (db && user) {
+      const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", id);
+      await setDoc(habitDoc, newHabit);
+      return;
+    }
+
+    const next = [...habits, newHabit];
+    setHabits(next);
+    saveLocalHabits(next);
+  };
+
+  const deleteHabitFromCloud = async (id) => {
+    if (db && user) {
+      const habitDoc = doc(db, "artifacts", appId, "users", user.uid, "habits", String(id));
+      await deleteDoc(habitDoc);
+      return;
+    }
+    const next = habits.filter((h) => String(h.id) !== String(id));
+    setHabits(next);
+    saveLocalHabits(next);
+  };
+
+  useEffect(() => {
+    const handleSpotifyToken = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const codeVerifier = localStorage.getItem("spotify_code_verifier");
+
+      if (code && codeVerifier) {
+        try {
+          const data = await spotifyTokenRequest({
+            client_id: SPOTIFY_CLIENT_ID,
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: window.location.origin + window.location.pathname,
+            code_verifier: codeVerifier,
+          });
+
+          if (data.access_token) {
+            const next = {
+              access_token: data.access_token,
+              refresh_token: data.refresh_token || null,
+              token_type: data.token_type || "Bearer",
+              scope: data.scope || "",
+              expires_at: nowMs() + ((data.expires_in || 3600) * 1000) - 60000,
+            };
+            setSpotifyAuth(next);
+            saveSpotifyAuth(next);
+            window.history.replaceState({}, document.title, window.location.pathname);
           }
-        },
-        onLogin: loginSpotify,
-      };
+        } catch (e) {
+          console.warn("Spotify auth exchange failed:", e);
+          clearSpotifyAuth();
+          setSpotifyAuth(null);
+        }
+      }
+    };
+    handleSpotifyToken();
+  }, []);
 
-            const renderHome = () => {
-        const layoutItems = [
-          { id: "clock", component: ClockWidget },
-          { id: "weather", component: WeatherWidget },
-          { id: "music", component: (props) => h(SpotifyWidget, { ...props, spotifyAuth, setSpotifyAuth }) },
-          { id: "cal", component: CalendarGrid },
-          { id: "stream", component: EventStreamWidget },
-          { id: "tasks", component: TasksWidget },
-          { id: "notes", component: NotesWidget },
-          { id: "habits", component: HabitWidget },
-          { id: "photo", component: PhotoWidget },
-        ];
+  useEffect(() => {
+    const loader = document.getElementById("loader");
+    if (!loader) return;
+    requestAnimationFrame(() => {
+      loader.style.opacity = "0";
+      setTimeout(() => {
+        loader.style.display = "none";
+      }, 300);
+    });
+  }, []);
 
-        const fsClass = isFullscreenMode
-          ? "min-h-0 h-full"
-          : "min-h-[200px]";
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", isDarkMode);
+    document.body.className = isDarkMode ? "dark" : "light";
+    localStorage.setItem("zen_theme", isDarkMode ? "dark" : "light");
+  }, [isDarkMode]);
 
-        const gridClass =
-          "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 flex-1 min-h-0 " +
-          (isFullscreenMode ? "grid-rows-3 auto-rows-fr overflow-hidden" : "");
+  useEffect(() => {
+    const fetchWeather = async () => {
+      try {
+        const res = await fetch(
+          "https://api.open-meteo.com/v1/forecast?latitude=" +
+            coords.lat +
+            "&longitude=" +
+            coords.lon +
+            "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto"
+        );
+        if (!res.ok) return;
+        setWeatherData(await res.json());
+      } catch {}
+    };
 
-        return h(
+    fetchWeather();
+    const intervalId = setInterval(fetchWeather, 1800000);
+    return () => clearInterval(intervalId);
+  }, [coords]);
+
+  const fetchGoogleData = useCallback(async () => {
+    if (!googleAuth?.access_token) return;
+
+    try {
+      const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).toISOString();
+
+      let calendarItems = calendars;
+      if (calendarItems.length === 0) {
+        const listRes = await googleApiFetch("https://www.googleapis.com/calendar/v3/users/me/calendarList");
+        const listData = await listRes.json();
+        if (listData.items) {
+          calendarItems = listData.items;
+          setCalendars(listData.items);
+        }
+      }
+
+      const ids = selectedCalIds.length > 0 ? selectedCalIds : calendarItems.map((c) => c.id);
+
+      if (ids.length > 0) {
+        const results = await Promise.all(
+          ids.map((id) =>
+            googleApiFetch(
+              "https://www.googleapis.com/calendar/v3/calendars/" +
+                encodeURIComponent(id) +
+                "/events?timeMin=" +
+                start +
+                "&singleEvents=true&orderBy=startTime"
+            )
+              .then((r) => r.json())
+              .catch(() => ({ items: [] }))
+          )
+        );
+
+        const merged = results
+          .flatMap((r) => r.items || [])
+          .map((ev) => ({
+            title: ev.summary || "Untitled",
+            rawDate: ev.start?.dateTime || ev.start?.date,
+            time: ev.start?.dateTime
+              ? new Date(ev.start.dateTime).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+              : "All Day",
+            location: ev.location || "",
+            notes: ev.description || "",
+          }))
+          .filter((e) => e.rawDate)
+          .sort((a, b) => new Date(a.rawDate) - new Date(b.rawDate));
+
+        setEvents(merged);
+      }
+
+      const resT = await googleApiFetch(
+        "https://www.googleapis.com/tasks/v1/lists/@default/tasks?showCompleted=false&maxResults=10"
+      );
+      const dT = await resT.json();
+      setTasks(dT.items ? dT.items.map((tk) => ({ id: tk.id, title: tk.title })) : []);
+      setGoogleErrorLabel("");
+    } catch (e) {
+      console.warn("Google data fetch failed:", e);
+    }
+  }, [googleAuth, googleApiFetch, viewDate, calendars, selectedCalIds]);
+
+  useEffect(() => {
+    if (googleAuth?.access_token) fetchGoogleData();
+  }, [googleAuth, fetchGoogleData]);
+
+  const createGoogleTask = async () => {
+    if (!googleAuth?.access_token || !newTaskTitle.trim() || isCreatingTask) return;
+
+    try {
+      setIsCreatingTask(true);
+      await googleApiFetch("https://www.googleapis.com/tasks/v1/lists/@default/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: newTaskTitle.trim() }),
+      });
+      setNewTaskTitle("");
+      await fetchGoogleData();
+    } catch (err) {
+      console.error("Task creation failed:", err);
+      alert("Could not create task. Please reconnect Google and try again.");
+    } finally {
+      setIsCreatingTask(false);
+    }
+  };
+
+  const loginSpotify = async () => {
+    const codeVerifier = generateRandomString(128);
+    const hashed = await sha256(codeVerifier);
+    const codeChallenge = base64urlencode(hashed);
+
+    localStorage.setItem("spotify_code_verifier", codeVerifier);
+
+    const redirectUri = window.location.origin + window.location.pathname;
+    const params = new URLSearchParams({
+      client_id: SPOTIFY_CLIENT_ID,
+      response_type: "code",
+      redirect_uri: redirectUri,
+      code_challenge_method: "S256",
+      code_challenge: codeChallenge,
+      scope: "user-read-currently-playing user-read-playback-state user-modify-playback-state",
+    });
+
+    window.location.href = "https://accounts.spotify.com/authorize?" + params.toString();
+  };
+
+  const loginFirebase = async () => {
+    try {
+      await signInWithPopup(auth, googleProvider);
+    } catch (e) {
+      console.error("Firebase Google sign-in failed:", e);
+      alert("Could not sign in for sync. Please try again.");
+    }
+  };
+
+  const logoutFirebase = async () => {
+    try {
+      await signOut(auth);
+      setHabits(loadLocalHabits());
+    } catch (e) {
+      console.error("Firebase sign-out failed:", e);
+    }
+  };
+
+  const loginGoogle = () => requestGoogleAccessToken(true);
+
+  const disconnectGoogle = () => {
+    clearGoogleAuth();
+    setGoogleAuth(null);
+    setEvents([]);
+    setTasks([]);
+    setCalendars([]);
+    setGoogleErrorLabel("");
+  };
+
+  const disconnectSpotify = () => {
+    clearSpotifyAuth();
+    setSpotifyAuth(null);
+  };
+
+  const toggleFullscreen = () => {
+    const next = !isFullscreenMode;
+    setIsFullscreenMode(next);
+    localStorage.setItem("zen_fullscreen", String(next));
+  };
+
+  const sharedProps = {
+    googleAuth,
+    spotifyAuth,
+    setSpotifyAuth,
+    weatherData,
+    viewDate,
+    habits,
+    events,
+    tasks,
+    locationLabel,
+    newTaskTitle,
+    setNewTaskTitle,
+    isCreatingTask,
+    onCreateTask: createGoogleTask,
+    onNavigate: setActiveTab,
+    onMonthChange: setViewDate,
+    onOpenFilter: () => setIsCalFilterOpen(true),
+    onToggleHabitCompletion: (id, dateStr) => {
+      const habit = habits.find((h) => String(h.id) === String(id));
+      if (!habit) return;
+      const completions = habit.completions || [];
+      const nextCompletions = completions.includes(dateStr)
+        ? completions.filter((c) => c !== dateStr)
+        : [...completions, dateStr];
+      updateHabitInCloud(id, { completions: nextCompletions });
+    },
+    onDateClick: (dayEvents, date) => {
+      setSelectedDayEvents(dayEvents);
+      setSelectedDayDate(date);
+    },
+    onToggleTask: async (id) => {
+      if (!googleAuth?.access_token) return;
+      try {
+        await googleApiFetch("https://www.googleapis.com/tasks/v1/lists/@default/tasks/" + id, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "completed" }),
+        });
+        fetchGoogleData();
+      } catch (e) {
+        console.warn("Task toggle failed:", e);
+      }
+    },
+    onLogin: loginSpotify,
+  };
+
+  const renderHome = () => {
+    const layoutItems = [
+      { id: "clock", component: ClockWidget },
+      { id: "weather", component: WeatherWidget },
+      { id: "music", component: (props) => h(SpotifyWidget, { ...props, spotifyAuth, setSpotifyAuth }) },
+      { id: "cal", component: CalendarGrid },
+      { id: "stream", component: EventStreamWidget },
+      { id: "tasks", component: TasksWidget },
+      { id: "notes", component: NotesWidget },
+      { id: "habits", component: HabitWidget },
+      { id: "photo", component: PhotoWidget },
+    ];
+
+    const fsClass = isFullscreenMode ? "min-h-0 h-full" : "min-h-[200px]";
+
+    const gridClass =
+      "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 flex-1 min-h-0 " +
+      (isFullscreenMode ? "grid-rows-3 auto-rows-fr overflow-hidden" : "");
+
+    return h(
+      "div",
+      {
+        className: gridClass + (isFullscreenMode ? " h-full overflow-hidden" : ""),
+      },
+      layoutItems.map((item) =>
+        h(
           "div",
           {
+            key: item.id,
             className:
-              gridClass + (isFullscreenMode ? " h-full overflow-hidden" : ""),
+              "glass-card " +
+              fsClass +
+              (item.id === "photo" ? " photo-card" : "") +
+              (isFullscreenMode ? " min-h-0" : ""),
           },
-          layoutItems.map((item) =>
-            h(
-              "div",
-              {
-                key: item.id,
-                className:
-                  "glass-card " +
-                  fsClass +
-                  (item.id === "photo" ? " photo-card" : "") +
-                  (isFullscreenMode ? " min-h-0" : ""),
-              },
-              h(item.component, sharedProps)
-            )
-          )
-        );
-      };
+          h(item.component, sharedProps)
+        )
+      )
+    );
+  };
 
-      const renderWeather = () =>
-        h(
-          "div",
-          { className: "glass-card p-10 min-h-[500px]" },
-          h(
-            "div",
-            { className: "mb-12" },
-            h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Weather"),
-            h(
-              "p",
-              { className: "text-[12px] text-stone-300 dark:text-stone-700 uppercase tracking-[0.4em] font-bold" },
-              locationLabel + ", California"
-            )
-          ),
-          weatherData &&
-            h(
-              "div",
-              { className: "grid grid-cols-1 lg:grid-cols-2 gap-8" },
-              h(
-                "div",
-                {
-                  className:
-                    "p-8 bg-stone-50/50 dark:bg-stone-900/30 rounded-[32px] border border-stone-100 dark:border-white/5",
-                },
-                h(
-                  "div",
-                  { className: "flex items-center gap-6 mb-8" },
-                  h(WeatherIcon, { code: weatherData.current.weather_code, className: "w-20 h-20" }),
-                  h(
-                    "div",
-                    null,
-                    h(
-                      "div",
-                      { className: "text-6xl font-light serif text-stone-800 dark:text-stone-100" },
-                      Math.round(weatherData.current.temperature_2m) + "°"
-                    ),
-                    h(
-                      "p",
-                      { className: "text-lg text-stone-500 dark:text-stone-400 serif italic" },
-                      WEATHER_CODES[weatherData.current.weather_code]
-                    )
-                  )
-                ),
-                h(
-                  "div",
-                  { className: "grid grid-cols-2 gap-6 pt-6 border-t border-stone-100 dark:border-stone-800" },
-                  h(
-                    "div",
-                    null,
-                    h(
-                      "p",
-                      { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" },
-                      "Feels Like"
-                    ),
-                    h(
-                      "p",
-                      { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
-                      Math.round(weatherData.current.apparent_temperature || weatherData.current.temperature_2m) + "°"
-                    )
-                  ),
-                  h(
-                    "div",
-                    null,
-                    h(
-                      "p",
-                      { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" },
-                      "Wind Speed"
-                    ),
-                    h(
-                      "p",
-                      { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
-                      Math.round(weatherData.current.wind_speed_10m || 0) + " mph"
-                    )
-                  ),
-                  h(
-                    "div",
-                    null,
-                    h(
-                      "p",
-                      { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" },
-                      "Humidity"
-                    ),
-                    h(
-                      "p",
-                      { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
-                      (weatherData.current.relative_humidity_2m || 0) + "%"
-                    )
-                  ),
-                  h(
-                    "div",
-                    null,
-                    h(
-                      "p",
-                      { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" },
-                      "UV Index"
-                    ),
-                    h(
-                      "p",
-                      { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
-                      weatherData.daily.uv_index_max[0] || 0
-                    )
-                  )
-                )
-              ),
-              h(
-                "div",
-                { className: "space-y-3" },
-                (weatherData.daily.time || []).map((date, idx) =>
-                  h(
-                    "div",
-                    {
-                      key: date,
-                      className:
-                        "flex items-center justify-between p-5 bg-stone-50/50 dark:bg-stone-900/20 rounded-2xl border border-stone-100/50 dark:border-white/5",
-                    },
-                    h(
-                      "span",
-                      { className: "w-24 text-sm font-semibold text-stone-700 dark:text-stone-300" },
-                      new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })
-                    ),
-                    h(
-                      "div",
-                      { className: "flex items-center gap-4 flex-1" },
-                      h(WeatherIcon, { code: weatherData.daily.weather_code[idx], className: "w-5 h-5" }),
-                      h(
-                        "span",
-                        { className: "text-xs text-stone-400 dark:text-stone-600 italic" },
-                        WEATHER_CODES[weatherData.daily.weather_code[idx]] || "Cloudy"
-                      )
-                    ),
-                    h(
-                      "span",
-                      { className: "font-bold text-stone-800 dark:text-stone-400 tabular-nums text-sm" },
-                      Math.round(weatherData.daily.temperature_2m_max[idx]) +
-                        "° / " +
-                        Math.round(weatherData.daily.temperature_2m_min[idx]) +
-                        "°"
-                    )
-                  )
-                )
-              )
-            )
-        );
-
-      const renderHabits = () =>
-        h(
-          "div",
-          { className: "glass-card p-10 min-h-[500px]" },
-          h(
-            "div",
-            { className: "flex justify-between items-end mb-12" },
-            h(
-              "div",
-              null,
-              h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Daily Rhythms"),
-              h("p", { className: "text-[12px] text-stone-300 font-bold uppercase tracking-widest" }, "Focus on the week")
-            ),
-            !showHabitForm &&
-              h(
-                "button",
-                {
-                  onClick: () => setShowHabitForm(true),
-                  className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
-                },
-                "+ NEW HABIT"
-              )
-          ),
-          showHabitForm &&
-            h(
-              "div",
-              {
-                className:
-                  "mb-10 p-8 bg-stone-50/50 dark:bg-stone-900/40 rounded-[32px] border border-stone-100 dark:border-white/5",
-              },
-              h("h3", { className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6" }, "Create New Habit"),
-              h(
-                "div",
-                { className: "flex flex-col md:flex-row gap-4" },
-                h("input", {
-                  type: "text",
-                  placeholder: "Habit name",
-                  value: newHabitName,
-                  onChange: (e) => setNewHabitName(e.target.value),
-                  className:
-                    "flex-1 bg-white dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-2xl px-4 py-3 text-sm focus:outline-none dark:text-white font-medium",
-                }),
-                h(
-                  "div",
-                  { className: "flex items-center gap-3" },
-                  h("span", { className: "text-[10px] font-bold text-stone-400 uppercase" }, "Goal:"),
-                  h(
-                    "select",
-                    {
-                      value: newHabitGoal,
-                      onChange: (e) => setNewHabitGoal(parseInt(e.target.value, 10)),
-                      className:
-                        "bg-white dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-2xl px-4 py-3 text-sm focus:outline-none dark:text-white font-medium",
-                    },
-                    [1, 2, 3, 4, 5, 6, 7].map((n) => h("option", { key: n, value: n }, n + " days/week"))
-                  )
-                ),
-                h(
-                  "div",
-                  { className: "flex gap-2" },
-                  h(
-                    "button",
-                    {
-                      onClick: () => {
-                        if (newHabitName.trim()) {
-                          addHabitToCloud(newHabitName.trim(), newHabitGoal);
-                          setNewHabitName("");
-                          setShowHabitForm(false);
-                        }
-                      },
-                      className: "px-6 py-3 bg-emerald-500 text-white rounded-2xl text-xs font-bold",
-                    },
-                    "Create"
-                  ),
-                  h(
-                    "button",
-                    {
-                      onClick: () => setShowHabitForm(false),
-                      className:
-                        "px-6 py-3 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-xs font-bold",
-                    },
-                    "Cancel"
-                  )
-                )
-              )
-            ),
-          h(
-            "div",
-            { className: "grid grid-cols-1 md:grid-cols-2 gap-6" },
-            habits.map((habit) =>
-              h(
-                "div",
-                {
-                  key: habit.id,
-                  className:
-                    "p-8 bg-stone-50/50 dark:bg-stone-900/30 rounded-[32px] border group transition-all hover:shadow-lg text-stone-800 dark:text-stone-200",
-                },
-                h(
-                  "div",
-                  { className: "flex justify-between items-start mb-8" },
-                  h(
-                    "div",
-                    null,
-                    h("h3", { className: "text-xl font-semibold" }, habit.name),
-                    h(
-                      "p",
-                      { className: "text-[11px] font-bold text-stone-400 dark:text-stone-600 uppercase mt-1" },
-                      (habit.completions || []).filter((c) => parseLocalDate(c) >= getStartOfWeek()).length +
-                        " / " +
-                        habit.goal +
-                        " target days"
-                    )
-                  ),
-                  h(
-                    "button",
-                    {
-                      onClick: () => deleteHabitFromCloud(habit.id),
-                      className: "text-red-300 opacity-0 group-hover:opacity-100 transition-all text-[10px] font-bold uppercase",
-                    },
-                    "DELETE"
-                  )
-                ),
-                h(
-                  "div",
-                  { className: "flex justify-between items-center gap-1" },
-                  Array.from({ length: 7 }, (_, i) => {
-                    const d = new Date(getStartOfWeek());
-                    d.setDate(d.getDate() + i);
-                    const dateStr = d.toISOString().split("T")[0];
-                    return h(
-                      "div",
-                      {
-                        key: dateStr,
-                        onClick: () => sharedProps.onToggleHabitCompletion(habit.id, dateStr),
-                        className: "flex flex-col items-center gap-2 cursor-pointer",
-                      },
-                      h("span", { className: "text-[9px] font-bold text-stone-300 uppercase" }, ["M", "T", "W", "T", "F", "S", "S"][i]),
-                      h("div", {
-                        className:
-                          "habit-dot " +
-                          ((habit.completions || []).includes(dateStr) ? "active" : "inactive") +
-                          (dateStr === new Date().toISOString().split("T")[0] ? " today" : ""),
-                      })
-                    );
-                  })
-                )
-              )
-            )
-          )
-        );
-
-      const filteredCalendarEvents = calendarSelectedDate
-        ? events.filter((e) => {
-            const a = new Date(e.rawDate);
-            return (
-              a.getFullYear() === calendarSelectedDate.getFullYear() &&
-              a.getMonth() === calendarSelectedDate.getMonth() &&
-              a.getDate() === calendarSelectedDate.getDate()
-            );
-          })
-        : events.filter((e) => new Date(e.rawDate) >= new Date(new Date().setHours(0, 0, 0, 0)));
-
-      const renderCalendar = () =>
-        h(CalendarPage, {
-          viewDate,
-          onMonthChange: setViewDate,
-          onOpenFilter: () => setIsCalFilterOpen(true),
-          events,
-          filteredEvents: filteredCalendarEvents,
-          selectedDayDate: calendarSelectedDate,
-          onDateClick: (dayEvents, date) => {
-            setCalendarSelectedDate(date);
-          },
-          onShowAllEvents: () => setCalendarSelectedDate(null),
-        });
-
-      const renderSettings = () =>
-        h(SettingsPage, {
-          user,
-          googleAuth,
-          spotifyAuth,
-          googleErrorLabel,
-          onReconnectGoogle: loginGoogle,
-          onReconnectSpotify: loginSpotify,
-          onDisconnectGoogle: disconnectGoogle,
-          onDisconnectSpotify: disconnectSpotify,
-          onLoginFirebase: loginFirebase,
-          onLogoutFirebase: logoutFirebase,
-          onNavigate: setActiveTab,
-        });
-
-      const getPageContent = () => {
-        if (activeTab === "home") return renderHome();
-        if (activeTab === "weather") return renderWeather();
-        if (activeTab === "habits") return renderHabits();
-        if (activeTab === "calendar") return renderCalendar();
-        return renderSettings();
-      };
-
-      return h(
+  const renderWeather = () =>
+    h(
+      "div",
+      { className: "glass-card p-10 min-h-[500px]" },
+      h(
         "div",
-        {
-          className:
-            "p-4 md:p-6 xl:p-8 max-w-[1600px] mx-auto flex flex-col transition-all " +
-            (isFullscreenMode ? "h-screen overflow-hidden" : "min-h-screen"),
-        },
-        h(SleepModeOverlay, {
-          isActive: isIdle,
-          spotifyAuth,
-          setSpotifyAuth,
-          onExit: () => setIsIdle(false),
-          onLogin: loginSpotify,
-        }),
-        h(DayDetailModal, {
-          events: selectedDayEvents || [],
-          date: selectedDayDate,
-          onClose: () => {
-            setSelectedDayEvents(null);
-            setSelectedDayDate(null);
-          },
-        }),
-        isCalFilterOpen &&
-          h(CalendarFilterModal, {
-            calendars,
-            selectedIds: selectedCalIds,
-            onToggle: (id) => {
-              const next = selectedCalIds.includes(id)
-                ? selectedCalIds.filter((x) => x !== id)
-                : [...selectedCalIds, id];
-              setSelectedCalIds(next);
-              localStorage.setItem("zen_selected_calendars", JSON.stringify(next));
-            },
-            onClose: () => setIsCalFilterOpen(false),
-          }),
-
+        { className: "mb-12" },
+        h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Weather"),
         h(
-          "header",
-          {
-            className:
-              "flex justify-between items-center mb-4 bg-white/50 dark:bg-stone-900/50 border border-stone-200/60 p-3 px-4 md:px-5 rounded-[32px] shadow-sm flex-shrink-0",
-          },
+          "p",
+          { className: "text-[12px] text-stone-300 dark:text-stone-700 uppercase tracking-[0.4em] font-bold" },
+          locationLabel + ", California"
+        )
+      ),
+      weatherData &&
+        h(
+          "div",
+          { className: "grid grid-cols-1 lg:grid-cols-2 gap-8" },
           h(
             "div",
-            { className: "flex gap-2" },
-            ["home", "weather", "habits", "calendar"].map((tab) =>
-              h(
-                "button",
-                {
-                  key: tab,
-                  onClick: () => setActiveTab(tab),
-                  className:
-                    "text-[10px] font-bold px-5 py-2.5 rounded-2xl transition-all " +
-                    (activeTab === tab
-                      ? "bg-stone-800 text-white shadow-md"
-                      : "text-stone-400 hover:text-stone-700 uppercase"),
-                },
-                tab
-              )
-            )
-          ),
-
-          h(
-            "div",
-            { className: "flex items-center gap-6" },
+            {
+              className:
+                "p-8 bg-stone-50/50 dark:bg-stone-900/30 rounded-[32px] border border-stone-100 dark:border-white/5",
+            },
             h(
               "div",
-              { className: "flex items-center gap-3 border-r border-stone-200 dark:border-stone-800 pr-6" },
+              { className: "flex items-center gap-6 mb-8" },
+              h(WeatherIcon, { code: weatherData.current.weather_code, className: "w-20 h-20" }),
               h(
-                "button",
-                {
-                  onClick: toggleFullscreen,
-                  className:
-                    "p-2 rounded-xl transition-all " +
-                    (isFullscreenMode ? "bg-stone-800 text-white shadow-lg" : "text-stone-300 hover:text-stone-800"),
-                },
+                "div",
+                null,
                 h(
-                  "svg",
-                  { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-                  h("path", {
-                    d: isFullscreenMode
-                      ? "M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4"
-                      : "M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3",
-                  })
-                )
-              ),
-              h(
-                "button",
-                {
-                  onClick: () => setIsIdle(true),
-                  className: "p-2 text-stone-300 hover:text-stone-800",
-                },
+                  "div",
+                  { className: "text-6xl font-light serif text-stone-800 dark:text-stone-100" },
+                  Math.round(weatherData.current.temperature_2m) + "°"
+                ),
                 h(
-                  "svg",
-                  { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-                  h("path", {
-                    d: "m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z",
-                  })
-                )
-              ),
-              h(
-                "button",
-                {
-                  onClick: () => setActiveTab("settings"),
-                  className:
-                    "p-2 rounded-xl transition-all " +
-                    (activeTab === "settings" ? "bg-stone-800 text-white shadow-lg" : "text-stone-300 hover:text-stone-800"),
-                },
-                h(
-                  "svg",
-                  { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2 },
-                  h("circle", { cx: 12, cy: 12, r: 3 }),
-                  h("path", {
-                    d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .99 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51.99H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51.99Z",
-                  })
+                  "p",
+                  { className: "text-lg text-stone-500 dark:text-stone-400 serif italic" },
+                  WEATHER_CODES[weatherData.current.weather_code]
                 )
               )
             ),
-
-            h(ThemeToggle, {
-              isDarkMode,
-              onToggle: () => setIsDarkMode(!isDarkMode),
-            }),
-
             h(
               "div",
-              { className: "flex items-center gap-2" },
-              !googleAuth?.access_token &&
+              { className: "grid grid-cols-2 gap-6 pt-6 border-t border-stone-100 dark:border-stone-800" },
+              h(
+                "div",
+                null,
+                h("p", { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" }, "Feels Like"),
                 h(
-                  "button",
-                  {
-                    onClick: loginGoogle,
-                    className:
-                      "text-[10px] font-bold bg-white text-stone-900 dark:bg-stone-950 dark:text-white border border-stone-200 dark:border-stone-700 px-5 py-2.5 rounded-2xl shadow-sm hover:bg-stone-50 transition-all",
-                  },
-                  "GOOGLE"
-                ),
-              googleErrorLabel &&
-                h("span", { className: "text-[10px] font-bold text-amber-500 uppercase" }, googleErrorLabel),
-              !spotifyAuth?.access_token &&
-                h(
-                  "button",
-                  {
-                    onClick: loginSpotify,
-                    className:
-                      "text-[10px] font-bold bg-white text-stone-900 dark:bg-stone-950 dark:text-white border border-stone-200 dark:border-stone-700 px-5 py-2.5 rounded-2xl shadow-sm hover:bg-stone-50 transition-all",
-                  },
-                  "SPOTIFY"
+                  "p",
+                  { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
+                  Math.round(weatherData.current.apparent_temperature || weatherData.current.temperature_2m) + "°"
                 )
+              ),
+              h(
+                "div",
+                null,
+                h("p", { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" }, "Wind Speed"),
+                h(
+                  "p",
+                  { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
+                  Math.round(weatherData.current.wind_speed_10m || 0) + " mph"
+                )
+              ),
+              h(
+                "div",
+                null,
+                h("p", { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" }, "Humidity"),
+                h(
+                  "p",
+                  { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
+                  (weatherData.current.relative_humidity_2m || 0) + "%"
+                )
+              ),
+              h(
+                "div",
+                null,
+                h("p", { className: "text-[10px] text-stone-300 dark:text-stone-700 uppercase font-black mb-1" }, "UV Index"),
+                h(
+                  "p",
+                  { className: "text-base font-medium text-stone-700 dark:text-stone-300" },
+                  weatherData.daily.uv_index_max[0] || 0
+                )
+              )
+            )
+          ),
+          h(
+            "div",
+            { className: "space-y-3" },
+            (weatherData.daily.time || []).map((date, idx) =>
+              h(
+                "div",
+                {
+                  key: date,
+                  className:
+                    "flex items-center justify-between p-5 bg-stone-50/50 dark:bg-stone-900/20 rounded-2xl border border-stone-100/50 dark:border-white/5",
+                },
+                h(
+                  "span",
+                  { className: "w-24 text-sm font-semibold text-stone-700 dark:text-stone-300" },
+                  new Date(date + "T00:00:00").toLocaleDateString("en-US", { weekday: "long" })
+                ),
+                h(
+                  "div",
+                  { className: "flex items-center gap-4 flex-1" },
+                  h(WeatherIcon, { code: weatherData.daily.weather_code[idx], className: "w-5 h-5" }),
+                  h(
+                    "span",
+                    { className: "text-xs text-stone-400 dark:text-stone-600 italic" },
+                    WEATHER_CODES[weatherData.daily.weather_code[idx]] || "Cloudy"
+                  )
+                ),
+                h(
+                  "span",
+                  { className: "font-bold text-stone-800 dark:text-stone-400 tabular-nums text-sm" },
+                  Math.round(weatherData.daily.temperature_2m_max[idx]) +
+                    "° / " +
+                    Math.round(weatherData.daily.temperature_2m_min[idx]) +
+                    "°"
+                )
+              )
+            )
+          )
+        )
+    );
+
+  const renderHabits = () =>
+    h(
+      "div",
+      { className: "glass-card p-10 min-h-[500px]" },
+      h(
+        "div",
+        { className: "flex justify-between items-end mb-12" },
+        h(
+          "div",
+          null,
+          h("h2", { className: "serif text-4xl mb-2 text-stone-800 dark:text-stone-100" }, "Daily Rhythms"),
+          h("p", { className: "text-[12px] text-stone-300 font-bold uppercase tracking-widest" }, "Focus on the week")
+        ),
+        !showHabitForm &&
+          h(
+            "button",
+            {
+              onClick: () => setShowHabitForm(true),
+              className: "px-5 py-2.5 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest",
+            },
+            "+ NEW HABIT"
+          )
+      ),
+      showHabitForm &&
+        h(
+          "div",
+          {
+            className:
+              "mb-10 p-8 bg-stone-50/50 dark:bg-stone-900/40 rounded-[32px] border border-stone-100 dark:border-white/5",
+          },
+          h("h3", { className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-6" }, "Create New Habit"),
+          h(
+            "div",
+            { className: "flex flex-col md:flex-row gap-4" },
+            h("input", {
+              type: "text",
+              placeholder: "Habit name",
+              value: newHabitName,
+              onChange: (e) => setNewHabitName(e.target.value),
+              className:
+                "flex-1 bg-white dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-2xl px-4 py-3 text-sm focus:outline-none dark:text-white font-medium",
+            }),
+            h(
+              "div",
+              { className: "flex items-center gap-3" },
+              h("span", { className: "text-[10px] font-bold text-stone-400 uppercase" }, "Goal:"),
+              h(
+                "select",
+                {
+                  value: newHabitGoal,
+                  onChange: (e) => setNewHabitGoal(parseInt(e.target.value, 10)),
+                  className:
+                    "bg-white dark:bg-stone-950 border border-stone-100 dark:border-stone-800 rounded-2xl px-4 py-3 text-sm focus:outline-none dark:text-white font-medium",
+                },
+                [1, 2, 3, 4, 5, 6, 7].map((n) => h("option", { key: n, value: n }, n + " days/week"))
+              )
+            ),
+            h(
+              "div",
+              { className: "flex gap-2" },
+              h(
+                "button",
+                {
+                  onClick: () => {
+                    if (newHabitName.trim()) {
+                      addHabitToCloud(newHabitName.trim(), newHabitGoal);
+                      setNewHabitName("");
+                      setShowHabitForm(false);
+                    }
+                  },
+                  className: "px-6 py-3 bg-emerald-500 text-white rounded-2xl text-xs font-bold",
+                },
+                "Create"
+              ),
+              h(
+                "button",
+                {
+                  onClick: () => setShowHabitForm(false),
+                  className:
+                    "px-6 py-3 bg-stone-100 dark:bg-stone-800 text-stone-600 dark:text-stone-300 rounded-2xl text-xs font-bold",
+                },
+                "Cancel"
+              )
+            )
+          )
+        ),
+      h(
+        "div",
+        { className: "grid grid-cols-1 md:grid-cols-2 gap-6" },
+        habits.map((habit) =>
+          h(
+            "div",
+            {
+              key: habit.id,
+              className:
+                "p-8 bg-stone-50/50 dark:bg-stone-900/30 rounded-[32px] border group transition-all hover:shadow-lg text-stone-800 dark:text-stone-200",
+            },
+            h(
+              "div",
+              { className: "flex justify-between items-start mb-8" },
+              h(
+                "div",
+                null,
+                h("h3", { className: "text-xl font-semibold" }, habit.name),
+                h(
+                  "p",
+                  { className: "text-[11px] font-bold text-stone-400 dark:text-stone-600 uppercase mt-1" },
+                  (habit.completions || []).filter((c) => parseLocalDate(c) >= getStartOfWeek()).length +
+                    " / " +
+                    habit.goal +
+                    " target days"
+                )
+              ),
+              h(
+                "button",
+                {
+                  onClick: () => deleteHabitFromCloud(habit.id),
+                  className: "text-red-300 opacity-0 group-hover:opacity-100 transition-all text-[10px] font-bold uppercase",
+                },
+                "DELETE"
+              )
+            ),
+            h(
+              "div",
+              { className: "flex justify-between items-center gap-1" },
+              Array.from({ length: 7 }, (_, i) => {
+                const d = new Date(getStartOfWeek());
+                d.setDate(d.getDate() + i);
+                const dateStr = d.toISOString().split("T")[0];
+                return h(
+                  "div",
+                  {
+                    key: dateStr,
+                    onClick: () => sharedProps.onToggleHabitCompletion(habit.id, dateStr),
+                    className: "flex flex-col items-center gap-2 cursor-pointer",
+                  },
+                  h("span", { className: "text-[9px] font-bold text-stone-300 uppercase" }, ["M", "T", "W", "T", "F", "S", "S"][i]),
+                  h("div", {
+                    className:
+                      "habit-dot " +
+                      ((habit.completions || []).includes(dateStr) ? "active" : "inactive") +
+                      (dateStr === new Date().toISOString().split("T")[0] ? " today" : ""),
+                  })
+                );
+              })
+            )
+          )
+        )
+      )
+    );
+
+  const filteredCalendarEvents = calendarSelectedDate
+    ? events.filter((e) => {
+        const a = new Date(e.rawDate);
+        return (
+          a.getFullYear() === calendarSelectedDate.getFullYear() &&
+          a.getMonth() === calendarSelectedDate.getMonth() &&
+          a.getDate() === calendarSelectedDate.getDate()
+        );
+      })
+    : events.filter((e) => new Date(e.rawDate) >= new Date(new Date().setHours(0, 0, 0, 0)));
+
+  const renderCalendar = () =>
+    h(CalendarPage, {
+      viewDate,
+      onMonthChange: setViewDate,
+      onOpenFilter: () => setIsCalFilterOpen(true),
+      events,
+      filteredEvents: filteredCalendarEvents,
+      selectedDayDate: calendarSelectedDate,
+      onDateClick: (dayEvents, date) => {
+        setCalendarSelectedDate(date);
+      },
+      onShowAllEvents: () => setCalendarSelectedDate(null),
+    });
+
+  const renderSettings = () =>
+    h(SettingsPage, {
+      user,
+      googleAuth,
+      spotifyAuth,
+      googleErrorLabel,
+      onReconnectGoogle: loginGoogle,
+      onReconnectSpotify: loginSpotify,
+      onDisconnectGoogle: disconnectGoogle,
+      onDisconnectSpotify: disconnectSpotify,
+      onLoginFirebase: loginFirebase,
+      onLogoutFirebase: logoutFirebase,
+      onNavigate: setActiveTab,
+    });
+
+  const getPageContent = () => {
+    if (activeTab === "home") return renderHome();
+    if (activeTab === "weather") return renderWeather();
+    if (activeTab === "habits") return renderHabits();
+    if (activeTab === "calendar") return renderCalendar();
+    return renderSettings();
+  };
+
+  return h(
+    "div",
+    {
+      className:
+        "p-4 md:p-6 xl:p-8 max-w-[1600px] mx-auto flex flex-col transition-all " +
+        (isFullscreenMode ? "h-screen overflow-hidden" : "min-h-screen"),
+    },
+    h(SleepModeOverlay, {
+      isActive: isIdle,
+      spotifyAuth,
+      setSpotifyAuth,
+      onExit: () => setIsIdle(false),
+      onLogin: loginSpotify,
+    }),
+    h(DayDetailModal, {
+      events: selectedDayEvents || [],
+      date: selectedDayDate,
+      onClose: () => {
+        setSelectedDayEvents(null);
+        setSelectedDayDate(null);
+      },
+    }),
+    isCalFilterOpen &&
+      h(CalendarFilterModal, {
+        calendars,
+        selectedIds: selectedCalIds,
+        onToggle: (id) => {
+          const next = selectedCalIds.includes(id)
+            ? selectedCalIds.filter((x) => x !== id)
+            : [...selectedCalIds, id];
+          setSelectedCalIds(next);
+          localStorage.setItem("zen_selected_calendars", JSON.stringify(next));
+        },
+        onClose: () => setIsCalFilterOpen(false),
+      }),
+
+    h(
+      "header",
+      {
+        className:
+          "flex justify-between items-center mb-4 bg-white/50 dark:bg-stone-900/50 border border-stone-200/60 p-3 px-4 md:px-5 rounded-[32px] shadow-sm flex-shrink-0",
+      },
+      h(
+        "div",
+        { className: "flex gap-2" },
+        ["home", "weather", "habits", "calendar"].map((tab) =>
+          h(
+            "button",
+            {
+              key: tab,
+              onClick: () => setActiveTab(tab),
+              className:
+                "text-[10px] font-bold px-5 py-2.5 rounded-2xl transition-all " +
+                (activeTab === tab
+                  ? "bg-stone-800 text-white shadow-md"
+                  : "text-stone-400 hover:text-stone-700 uppercase"),
+            },
+            tab
+          )
+        )
+      ),
+
+      h(
+        "div",
+        { className: "flex items-center gap-6" },
+        h(
+          "div",
+          { className: "flex items-center gap-3 border-r border-stone-200 dark:border-stone-800 pr-6" },
+          h(
+            "button",
+            {
+              onClick: toggleFullscreen,
+              className:
+                "p-2 rounded-xl transition-all " +
+                (isFullscreenMode ? "bg-stone-800 text-white shadow-lg" : "text-stone-300 hover:text-stone-800"),
+            },
+            h(
+              "svg",
+              { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+              h("path", {
+                d: isFullscreenMode
+                  ? "M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4"
+                  : "M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3",
+              })
+            )
+          ),
+          h(
+            "button",
+            {
+              onClick: () => setIsIdle(true),
+              className: "p-2 text-stone-300 hover:text-stone-800",
+            },
+            h(
+              "svg",
+              { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+              h("path", {
+                d: "m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z",
+              })
+            )
+          ),
+          h(
+            "button",
+            {
+              onClick: () => setActiveTab("settings"),
+              className:
+                "p-2 rounded-xl transition-all " +
+                (activeTab === "settings" ? "bg-stone-800 text-white shadow-lg" : "text-stone-300 hover:text-stone-800"),
+            },
+            h(
+              "svg",
+              { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.2 },
+              h("circle", { cx: 12, cy: 12, r: 3 }),
+              h("path", {
+                d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h.01a1.65 1.65 0 0 0 .99-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 .99 1.51h.01a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.01a1.65 1.65 0 0 0 1.51.99H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51.99Z",
+              })
             )
           )
         ),
 
-        getPageContent(),
+        h(ThemeToggle, {
+          isDarkMode,
+          onToggle: () => setIsDarkMode(!isDarkMode),
+        }),
 
         h(
-          "footer",
-          {
-            className:
-              "py-6 mt-auto text-center text-[10px] text-stone-200 dark:text-stone-950 uppercase font-black tracking-[0.7em] flex-shrink-0 " +
-              (isFullscreenMode ? "hidden" : ""),
-          },
-          "Dayboard • Balance"
+          "div",
+          { className: "flex items-center gap-2" },
+          !googleAuth?.access_token &&
+            h(
+              "button",
+              {
+                onClick: loginGoogle,
+                className:
+                  "text-[10px] font-bold bg-white text-stone-900 dark:bg-stone-950 dark:text-white border border-stone-200 dark:border-stone-700 px-5 py-2.5 rounded-2xl shadow-sm hover:bg-stone-50 transition-all",
+              },
+              "GOOGLE"
+            ),
+          googleErrorLabel &&
+            h("span", { className: "text-[10px] font-bold text-amber-500 uppercase" }, googleErrorLabel),
+          !spotifyAuth?.access_token &&
+            h(
+              "button",
+              {
+                onClick: loginSpotify,
+                className:
+                  "text-[10px] font-bold bg-white text-stone-900 dark:bg-stone-950 dark:text-white border border-stone-200 dark:border-stone-700 px-5 py-2.5 rounded-2xl shadow-sm hover:bg-stone-50 transition-all",
+              },
+              "SPOTIFY"
+            )
         )
-      );
+      )
+    ),
 
-    try {
-      const root = ReactDOM.createRoot(document.getElementById("root"));
-      root.render(h(App));
-    } catch (err) {
-      console.error("App failed to render:", err);
-      const loader = document.getElementById("loader");
-      if (loader) loader.style.display = "none";
-      const root = document.getElementById("root");
-      root.innerHTML =
-        '<div style="padding:32px;font-family:Inter,sans-serif;color:#7f1d1d;">' +
-        "<h1>App failed to load</h1>" +
-        "<p>Open DevTools console to see the error.</p>" +
-        "</div>";
-    }
-  </script>
+    getPageContent(),
+
+    h(
+      "footer",
+      {
+        className:
+          "py-6 mt-auto text-center text-[10px] text-stone-200 dark:text-stone-950 uppercase font-black tracking-[0.7em] flex-shrink-0 " +
+          (isFullscreenMode ? "hidden" : ""),
+      },
+      "Dayboard • Balance"
+    )
+  );
+}
+
+try {
+  const root = ReactDOM.createRoot(document.getElementById("root"));
+  root.render(h(App));
+} catch (err) {
+  console.error("App failed to render:", err);
+  const loader = document.getElementById("loader");
+  if (loader) loader.style.display = "none";
+  const root = document.getElementById("root");
+  root.innerHTML =
+    '<div style="padding:32px;font-family:Inter,sans-serif;color:#7f1d1d;">' +
+    "<h1>App failed to load</h1>" +
+    "<p>Open DevTools console to see the error.</p>" +
+    "</div>";
+}
+</script>
 </body>
 </html>
