@@ -10,16 +10,11 @@
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/dayboard-32.png" />
 <link rel="icon" type="image/png" sizes="192x192" href="./icons/dayboard-192.png" />
 <link rel="apple-touch-icon" sizes="180x180" href="./icons/dayboard-180.png" />
-<link rel="manifest" href="./manifest.webmanifest" />
 <meta name="theme-color" content="#0d0d0c" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Dayboard" />
   <link rel="manifest" href="./manifest.webmanifest" />
-  <meta name="theme-color" content="#0d0d0c" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Dayboard" />
 
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -1784,7 +1779,37 @@ function clearGooglePhotosSelection() {
       }, "SETTINGS")
   );
 }
-
+function SleepModeOverlay({ isActive, spotifyAuth, setSpotifyAuth, onExit, onLogin }) {
+  return h(
+    "div",
+    { className: "sleep-overlay " + (isActive ? "active" : "") },
+    h(
+      "button",
+      {
+        onClick: (e) => {
+          e.stopPropagation();
+          onExit();
+        },
+        className:
+          "absolute top-10 right-10 p-5 text-stone-100 transition-all duration-300 z-[210] opacity-80 hover:opacity-100 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full border border-white/20 shadow-2xl",
+      },
+      h(
+        "svg",
+        { width: 24, height: 24, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+        h("path", { d: "M18 6L6 18M6 6l12 12" })
+      )
+    ),
+    h(
+      "div",
+      {
+        className:
+          "sleep-content flex flex-col lg:flex-row items-center justify-center gap-16 lg:gap-32 w-full max-w-7xl px-20",
+      },
+      h("div", { className: "flex-1 flex justify-center scale-110 lg:scale-125" }, h(ClockWidget, { large: true })),
+      h("div", { className: "flex-1 w-full max-w-md" }, h(SpotifyWidget, { spotifyAuth, setSpotifyAuth, ambient: true, onLogin }))
+    )
+  );
+}
     function CalendarFilterModal({ calendars, selectedIds, onToggle, onClose }) {
       return h(
         "div",
