@@ -1324,137 +1324,90 @@
     }
 
     function CalendarGrid({ viewDate, onMonthChange, onOpenFilter, events, onDateClick }) {
-      const y = viewDate?.getFullYear() || new Date().getFullYear();
-      const m = viewDate?.getMonth() ?? new Date().getMonth();
-      const start = new Date(y, m, 1).getDay();
-      const daysCount = new Date(y, m + 1, 0).getDate();
+  const y = viewDate?.getFullYear() || new Date().getFullYear();
+  const m = viewDate?.getMonth() ?? new Date().getMonth();
+  const start = new Date(y, m, 1).getDay();
+  const daysCount = new Date(y, m + 1, 0).getDate();
 
-      const cells = Array.from({ length: 42 }, (_, i) =>
-        i >= start && i < start + daysCount ? i - start + 1 : null
-      );
+  const cells = Array.from({ length: 42 }, (_, i) =>
+    i >= start && i < start + daysCount ? i - start + 1 : null
+  );
 
-      const eventDaysSet = useMemo(() => {
-        const s = new Set();
-        events.forEach((e) => {
-          const d = new Date(e.rawDate);
-          if (d.getMonth() === m && d.getFullYear() === y) s.add(d.getDate());
-        });
-        return s;
-      }, [events, m, y]);
+  const eventDaysSet = useMemo(() => {
+    const s = new Set();
+    events.forEach((e) => {
+      const d = new Date(e.rawDate);
+      if (d.getMonth() === m && d.getFullYear() === y) s.add(d.getDate());
+    });
+    return s;
+  }, [events, m, y]);
 
-      const changeMonth = (offset) => onMonthChange(new Date(y, m + offset, 1));
+  const changeMonth = (offset) => onMonthChange(new Date(y, m + offset, 1));
 
-      return h(
-        "div",
-        { className: "p-6 flex flex-col h-full" },
-        h(
-          "div",
-          { className: "flex justify-between items-center mb-4 flex-shrink-0" },
-          h(
-            "div",
-            { className: "flex items-center gap-2" },
-            h(
-              "button",
-              {
-                onClick: () => changeMonth(-1),
-                className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
-              },
-              h(
-                "svg",
-                { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-                h("path", { d: "M15 18l-6-6 6-6" })
-              )
-            ),
-            h(
-              "h3",
-              {
-                className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest min-w-[70px] text-center",
-              },
-              new Date(y, m).toLocaleDateString("en-US", { month: "short", year: "numeric" })
-            ),
-            h(
-              "button",
-              {
-                onClick: () => changeMonth(1),
-                className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
-              },
-              h(
-                "svg",
-                { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-                h("path", { d: "M9 18l6-6-6-6" })
-              )
-            )
-          ),
-          h(
-            "div",
-            { className: "flex gap-3 items-center" },
-            h(
-              "button",
-              {
-                onClick: onOpenFilter,
-                className: "text-stone-300 hover:text-stone-600 transition-colors",
-              },
-              h(
-                "svg",
-                { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
-                h("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
-              )
-            ),
-            h(
-              "button",
-              {
-                onClick: () => onMonthChange(new Date()),
-                className: "text-[9px] font-bold text-stone-400 hover:text-stone-800 uppercase",
-              },
-              "Today"
-            )
-          )
-        ),
-        h(
-          "div",
-          { className: "grid grid-cols-7 gap-1 text-center flex-1" },
-          ["S", "M", "T", "W", "T", "F", "S"].map((d) =>
-            h("span", { key: d, className: "text-[9px] font-bold text-stone-200" }, d)
-          ),
-          cells.map((day, i) => {
-            const hasEvent = day && eventDaysSet.has(day);
-            return h(
-              "div",
-              {
-                key: i,
-                onClick: () => {
-                  if (hasEvent) {
-                    const dayEvents = events.filter((e) => {
-                      const d = new Date(e.rawDate);
-                      return d.getDate() === day && d.getMonth() === m && d.getFullYear() === y;
-                    });
-                    onDateClick(dayEvents, new Date(y, m, day));
-                  }
-                },
-                className:
-                  "relative flex items-center justify-center text-[11px] " +
-                  (hasEvent ? "cursor-pointer hover:bg-stone-50 dark:hover:bg-white/5 rounded-full" : ""),
-              },
-              day &&
-                h(
-                  "span",
-                  {
-                    className: `w-6 h-6 flex items-center justify-center rounded-full ${
-                      day === new Date().getDate() &&
-                      m === new Date().getMonth() &&
-                      y === new Date().getFullYear()
-                        ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-950 font-bold"
-                        : "text-stone-600 dark:text-stone-400"
-                    }`,
-                  },
-                  day
-                ),
-              hasEvent && h("div", { className: "absolute bottom-0.5 w-0.5 h-0.5 bg-stone-300 dark:bg-stone-700 rounded-full" })
-            );
-          })
-        )
-      );
-    }
+  return h("div", { className: "p-6 flex flex-col h-full min-h-0 overflow-hidden" },
+    h("div", { className: "flex justify-between items-center mb-4 flex-shrink-0" },
+      h("div", { className: "flex items-center gap-2" },
+        h("button", {
+          onClick: () => changeMonth(-1),
+          className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
+        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+          h("path", { d: "M15 18l-6-6 6-6" })
+        )),
+        h("h3", {
+          className: "text-[10px] font-bold text-stone-400 uppercase tracking-widest min-w-[70px] text-center",
+        }, new Date(y, m).toLocaleDateString("en-US", { month: "short", year: "numeric" })),
+        h("button", {
+          onClick: () => changeMonth(1),
+          className: "p-1 hover:bg-stone-100 dark:hover:bg-white/5 rounded-lg text-stone-400",
+        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+          h("path", { d: "M9 18l6-6-6-6" })
+        ))
+      ),
+      h("div", { className: "flex gap-3 items-center" },
+        h("button", {
+          onClick: onOpenFilter,
+          className: "text-stone-300 hover:text-stone-600 transition-colors",
+        }, h("svg", { width: 14, height: 14, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2.5 },
+          h("path", { d: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z" })
+        )),
+        h("button", {
+          onClick: () => onMonthChange(new Date()),
+          className: "text-[9px] font-bold text-stone-400 hover:text-stone-800 uppercase",
+        }, "Today")
+      )
+    ),
+    h("div", { className: "grid grid-cols-7 gap-1 text-center flex-1" },
+      ["S","M","T","W","T","F","S"].map((d) => h("span", { key: d, className: "text-[9px] font-bold text-stone-200" }, d)),
+      cells.map((day, i) => {
+        const hasEvent = day && eventDaysSet.has(day);
+        return h("div", {
+            key: i,
+            onClick: () => {
+              if (hasEvent) {
+                const dayEvents = events.filter((e) => {
+                  const d = new Date(e.rawDate);
+                  return d.getDate() === day && d.getMonth() === m && d.getFullYear() === y;
+                });
+                onDateClick(dayEvents, new Date(y, m, day));
+              }
+            },
+            className: "relative flex items-center justify-center text-[11px] " + (hasEvent ? "cursor-pointer hover:bg-stone-50 dark:hover:bg-white/5 rounded-full" : ""),
+          },
+          day && h("span", {
+            className: `w-6 h-6 flex items-center justify-center rounded-full ${
+              day === new Date().getDate() &&
+              m === new Date().getMonth() &&
+              y === new Date().getFullYear()
+                ? "bg-stone-800 text-white dark:bg-stone-100 dark:text-stone-950 font-bold"
+                : "text-stone-600 dark:text-stone-400"
+            }`,
+          }, day),
+          hasEvent && h("div", { className: "absolute bottom-0.5 w-0.5 h-0.5 bg-stone-300 dark:bg-stone-700 rounded-full" })
+        );
+      })
+    )
+  );
+}
 
     function EventStreamWidget({ events, onNavigate, onDateClick }) {
       const todayEvents = events.filter((e) => new Date(e.rawDate).toDateString() === new Date().toDateString());
@@ -1800,122 +1753,183 @@
     }
 
     function CalendarPage({
-      viewDate,
-      onMonthChange,
-      onOpenFilter,
-      events,
-      filteredEvents,
-      selectedDayDate,
-      onDateClick,
-      onShowAllEvents,
-    }) {
-      const title = selectedDayDate
-        ? selectedDayDate.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
-        : "Upcoming Events";
+  viewDate,
+  onMonthChange,
+  onOpenFilter,
+  events,
+  filteredEvents,
+  selectedDayDate,
+  onDateClick,
+  onShowAllEvents,
+}) {
+  const title = selectedDayDate
+    ? selectedDayDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+      })
+    : "Upcoming Events";
 
-      return h(
+  return h(
+    "div",
+    {
+      className:
+        "glass-card p-4 md:p-6 h-[calc(100vh-170px)] min-h-[620px] overflow-hidden",
+    },
+    h(
+      "div",
+      {
+        className:
+          "grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6 h-full overflow-hidden",
+      },
+
+      h(
         "div",
-        { className: "glass-card p-6 md:p-8 min-h-[560px]" },
+        {
+          className:
+            "bg-stone-50/50 dark:bg-stone-900/30 rounded-[28px] border border-stone-100 dark:border-white/5 h-full min-h-0 overflow-hidden",
+        },
+        h(CalendarGrid, {
+          viewDate,
+          onMonthChange,
+          onOpenFilter,
+          events,
+          onDateClick,
+        })
+      ),
+
+      h(
+        "div",
+        {
+          className:
+            "bg-stone-50/50 dark:bg-stone-900/20 rounded-[28px] border border-stone-100 dark:border-white/5 p-6 md:p-8 h-full min-h-0 overflow-hidden flex flex-col",
+        },
         h(
           "div",
-          { className: "grid grid-cols-1 xl:grid-cols-[420px_minmax(0,1fr)] gap-6 h-full" },
+          {
+            className:
+              "flex items-center justify-between mb-6 gap-4 shrink-0",
+          },
           h(
             "div",
-            { className: "bg-stone-50/50 dark:bg-stone-900/30 rounded-[28px] border border-stone-100 dark:border-white/5 min-h-[420px]" },
-            h(CalendarGrid, {
-              viewDate,
-              onMonthChange,
-              onOpenFilter,
-              events,
-              onDateClick,
-            })
+            null,
+            h("h2", { className: "serif text-3xl text-stone-800 dark:text-stone-100" }, "Calendar"),
+            h(
+              "p",
+              {
+                className:
+                  "text-[11px] font-bold text-stone-400 uppercase tracking-[0.25em] mt-2",
+              },
+              title
+            )
           ),
-          h(
-            "div",
-            { className: "bg-stone-50/50 dark:bg-stone-900/20 rounded-[28px] border border-stone-100 dark:border-white/5 p-6 md:p-8 flex flex-col min-h-[420px]" },
+          selectedDayDate &&
             h(
-              "div",
-              { className: "flex items-center justify-between mb-6 gap-4" },
-              h(
-                "div",
-                null,
-                h("h2", { className: "serif text-3xl text-stone-800 dark:text-stone-100" }, "Calendar"),
-                h("p", { className: "text-[11px] font-bold text-stone-400 uppercase tracking-[0.25em] mt-2" }, title)
-              ),
-              selectedDayDate &&
+              "button",
+              {
+                onClick: onShowAllEvents,
+                className:
+                  "px-4 py-2 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest whitespace-nowrap shrink-0",
+              },
+              "SHOW ALL"
+            )
+        ),
+
+        h(
+          "div",
+          {
+            className:
+              "flex-1 min-h-0 overflow-y-auto no-scrollbar pr-1 space-y-4",
+          },
+          filteredEvents.length > 0
+            ? filteredEvents.map((e, i) =>
                 h(
-                  "button",
+                  "div",
                   {
-                    onClick: onShowAllEvents,
-                    className: "px-4 py-2 bg-stone-800 text-white rounded-2xl text-[10px] font-bold tracking-widest whitespace-nowrap",
+                    key: i,
+                    className:
+                      "p-5 bg-white/70 dark:bg-stone-950/40 rounded-[24px] border border-stone-100 dark:border-white/5 shadow-sm",
                   },
-                  "SHOW ALL"
-                )
-            ),
-            h(
-              "div",
-              { className: "flex-1 overflow-y-auto no-scrollbar space-y-4" },
-              filteredEvents.length > 0
-                ? filteredEvents.map((e, i) =>
+                  h(
+                    "div",
+                    { className: "flex justify-between items-start gap-4 mb-2" },
+                    h(
+                      "div",
+                      { className: "min-w-0 flex-1" },
+                      !selectedDayDate &&
+                        h(
+                          "p",
+                          {
+                            className:
+                              "text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest mb-1",
+                          },
+                          new Date(e.rawDate).toLocaleDateString("en-US", {
+                            weekday: "long",
+                            month: "short",
+                            day: "numeric",
+                          })
+                        ),
+                      h(
+                        "h3",
+                        {
+                          className:
+                            "text-base md:text-lg font-semibold text-stone-800 dark:text-stone-100",
+                        },
+                        e.title
+                      )
+                    ),
+                    h(
+                      "span",
+                      {
+                        className:
+                          "text-[10px] font-black text-stone-400 dark:text-stone-600 uppercase tracking-widest shrink-0",
+                      },
+                      e.time
+                    )
+                  ),
+                  e.location &&
                     h(
                       "div",
                       {
-                        key: i,
                         className:
-                          "p-5 bg-white/70 dark:bg-stone-950/40 rounded-[24px] border border-stone-100 dark:border-white/5 shadow-sm",
+                          "flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mt-2 mb-3",
                       },
-                      h(
-                        "div",
-                        { className: "flex justify-between items-start gap-4 mb-2" },
-                        h(
-                          "div",
-                          { className: "min-w-0 flex-1" },
-                          !selectedDayDate &&
-                            h(
-                              "p",
-                              { className: "text-[10px] font-bold text-stone-400 dark:text-stone-600 uppercase tracking-widest mb-1" },
-                              new Date(e.rawDate).toLocaleDateString("en-US", {
-                                weekday: "long",
-                                month: "short",
-                                day: "numeric",
-                              })
-                            ),
-                          h("h3", { className: "text-base md:text-lg font-semibold text-stone-800 dark:text-stone-100" }, e.title)
-                        ),
-                        h("span", { className: "text-[10px] font-black text-stone-400 dark:text-stone-600 uppercase tracking-widest shrink-0" }, e.time)
-                      ),
-                      e.location &&
-                        h(
-                          "div",
-                          { className: "flex items-center gap-2 text-xs text-stone-500 dark:text-stone-400 mt-2 mb-3" },
-                          h("span", null, "📍"),
-                          h("span", null, e.location)
-                        ),
-                      e.notes &&
-                        h(
-                          "div",
-                          {
-                            className:
-                              "text-sm text-stone-400 dark:text-stone-500 leading-relaxed border-t border-stone-100 dark:border-stone-800/50 pt-3 mt-3 serif italic",
-                          },
-                          e.notes.replace(/<[^>]*>?/gm, "")
-                        )
-                    )
-                  )
-                : h(
-                    "div",
-                    { className: "h-full flex items-center justify-center" },
+                      h("span", null, "📍"),
+                      h("span", null, e.location)
+                    ),
+                  e.notes &&
                     h(
-                      "p",
-                      { className: "text-sm italic text-stone-400 dark:text-stone-500" },
-                      selectedDayDate ? "No events on this day." : "No upcoming events found."
+                      "div",
+                      {
+                        className:
+                          "text-sm text-stone-400 dark:text-stone-500 leading-relaxed border-t border-stone-100 dark:border-stone-800/50 pt-3 mt-3 serif italic",
+                      },
+                      e.notes.replace(/<[^>]*>?/gm, "")
                     )
-                  )
-            )
-          )
+                )
+              )
+            : h(
+                "div",
+                {
+                  className:
+                    "h-full flex items-center justify-center",
+                },
+                h(
+                  "p",
+                  {
+                    className:
+                      "text-sm italic text-stone-400 dark:text-stone-500",
+                  },
+                  selectedDayDate
+                    ? "No events on this day."
+                    : "No upcoming events found."
+                )
+              )
         )
-      );
-    }
+      )
+    )
+  );
+}
 
     function SettingsPage({
       user,
