@@ -1,0 +1,20 @@
+{
+  "name": "Dayboard",
+  "short_name": "Dayboard",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0d0d0c",
+  "theme_color": "#0d0d0c",
+  "icons": [
+    {
+      "src": "./icons/dayboard-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "./icons/dayboard-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
