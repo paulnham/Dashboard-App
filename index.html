@@ -1711,135 +1711,138 @@ function savePhotoTransitionInterval(value) {
   const rafRef = useRef(null);
 
   const [idx, setIdx] = useState(0);
-  const [currentSrc, setCurrentSrc] = useState("");
-  const [prevSrc, setPrevSrc] = useState("");
-  const [isSliding, setIsSliding] = useState(false);
-  const [enterActive, setEnterActive] = useState(false);
+const [currentSrc, setCurrentSrc] = useState("");
+const [prevSrc, setPrevSrc] = useState("");
+const [isSliding, setIsSliding] = useState(false);
+const [enterActive, setEnterActive] = useState(false);
 
-  useEffect(() => {
-    setIdx(0);
-  }, [sourcePhotos.length]);
+useEffect(() => {
+  setIdx(0);
+}, [sourcePhotos.length]);
 
-  useEffect(() => {
-    const ms = intervalMsMap[photoTransitionInterval];
-    if (!ms || sourcePhotos.length <= 1) return;
+useEffect(() => {
+  const ms = intervalMsMap[photoTransitionInterval];
+  if (!ms || sourcePhotos.length <= 1) return;
 
-    const timer = setInterval(() => {
-      setIdx((prev) => (prev + 1) % sourcePhotos.length);
-    }, ms);
+  const timer = setInterval(() => {
+    setIdx((prev) => (prev + 1) % sourcePhotos.length);
+  }, ms);
 
-    return () => clearInterval(timer);
-  }, [photoTransitionInterval, sourcePhotos.length]);
+  return () => clearInterval(timer);
+}, [photoTransitionInterval, sourcePhotos.length]);
 
-  useEffect(() => {
-    const revokeUrl = (ref) => {
-      if (ref.current) {
-        URL.revokeObjectURL(ref.current);
-        ref.current = null;
+useEffect(() => {
+  const revokeUrl = (ref) => {
+    if (ref.current) {
+      URL.revokeObjectURL(ref.current);
+      ref.current = null;
+    }
+  };
+
+  let cancelled = false;
+
+  const resolveDisplaySrc = async (src) => {
+    if (!src) return "";
+
+    if (!usingGooglePhotos) return src;
+    if (!googleAuth?.access_token) return "";
+
+    const response = await fetch(src, {
+      headers: {
+        Authorization: "Bearer " + googleAuth.access_token,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error("Google Photos image fetch failed: " + response.status);
+    }
+
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  };
+
+  const loadNextImage = async () => {
+    const nextSource = sourcePhotos[idx];
+    if (!nextSource) {
+      setPrevSrc("");
+      setCurrentSrc("");
+      setIsSliding(false);
+      setEnterActive(false);
+      return;
+    }
+
+    try {
+      const nextDisplaySrc = await resolveDisplaySrc(nextSource);
+
+      if (cancelled) {
+        if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
+          URL.revokeObjectURL(nextDisplaySrc);
+        }
+        return;
       }
-    };
 
-    let cancelled = false;
+      const hadCurrent = !!currentSrc;
 
-    const resolveDisplaySrc = async (src) => {
-      if (!src) return "";
-
-      if (!usingGooglePhotos) return src;
-      if (!googleAuth?.access_token) return "";
-
-      const response = await fetch(src, {
-        headers: {
-          Authorization: "Bearer " + googleAuth.access_token,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Google Photos image fetch failed: " + response.status);
-      }
-
-      const blob = await response.blob();
-      return URL.createObjectURL(blob);
-    };
-
-    const loadNextImage = async () => {
-      const nextSource = sourcePhotos[idx];
-      if (!nextSource) {
+      if (!hadCurrent) {
+        if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
+          revokeUrl(objectUrlRef);
+          objectUrlRef.current = nextDisplaySrc;
+        }
+        setCurrentSrc(nextDisplaySrc);
         setPrevSrc("");
-        setCurrentSrc("");
         setIsSliding(false);
         setEnterActive(false);
         return;
       }
 
-      try {
-        const nextDisplaySrc = await resolveDisplaySrc(nextSource);
+      setPrevSrc(currentSrc);
 
-        if (cancelled) {
-          if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
-            URL.revokeObjectURL(nextDisplaySrc);
-          }
-          return;
-        }
-
-        if (!currentSrc) {
-          if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
-            revokeUrl(objectUrlRef);
-            objectUrlRef.current = nextDisplaySrc;
-          }
-          setCurrentSrc(nextDisplaySrc);
-          setPrevSrc("");
-          setIsSliding(false);
-          setEnterActive(false);
-          return;
-        }
-
-        setPrevSrc(currentSrc);
-
-        if (currentSrc.startsWith("blob:")) {
-          objectUrlPrevRef.current = currentSrc;
-        }
-
-        if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
-          revokeUrl(objectUrlRef);
-          objectUrlRef.current = nextDisplaySrc;
-        }
-
-        setEnterActive(false);
-        setCurrentSrc(nextDisplaySrc);
-        setIsSliding(true);
-
-        if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        rafRef.current = requestAnimationFrame(() => {
-          rafRef.current = requestAnimationFrame(() => {
-            if (!cancelled) setEnterActive(true);
-          });
-        });
-
-        if (transitionTimeoutRef.current) {
-          clearTimeout(transitionTimeoutRef.current);
-        }
-
-        transitionTimeoutRef.current = setTimeout(() => {
-          setPrevSrc("");
-          setIsSliding(false);
-          setEnterActive(false);
-
-          if (objectUrlPrevRef.current) {
-            URL.revokeObjectURL(objectUrlPrevRef.current);
-            objectUrlPrevRef.current = null;
-          }
-        }, 750);
-      } catch (err) {
-        console.error("Google Photos widget image failed:", err);
+      if (currentSrc.startsWith("blob:")) {
+        objectUrlPrevRef.current = currentSrc;
       }
-    };
 
-    loadNextImage();
+      if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
+        revokeUrl(objectUrlRef);
+        objectUrlRef.current = nextDisplaySrc;
+      }
 
-    return () => {
-      cancelled = true;
-    };
-  }, [idx, sourcePhotos, usingGooglePhotos, googleAuth, currentSrc]);
+      setEnterActive(false);
+      setCurrentSrc(nextDisplaySrc);
+      setIsSliding(true);
+
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = requestAnimationFrame(() => {
+          if (!cancelled) setEnterActive(true);
+        });
+      });
+
+      if (transitionTimeoutRef.current) {
+        clearTimeout(transitionTimeoutRef.current);
+      }
+
+      transitionTimeoutRef.current = setTimeout(() => {
+        setPrevSrc("");
+        setIsSliding(false);
+        setEnterActive(false);
+
+        if (objectUrlPrevRef.current) {
+          URL.revokeObjectURL(objectUrlPrevRef.current);
+          objectUrlPrevRef.current = null;
+        }
+      }, 750);
+    } catch (err) {
+      console.error("Google Photos widget image failed:", err);
+    }
+  };
+
+  loadNextImage();
+
+  return () => {
+    cancelled = true;
+  };
+}, [idx, sourcePhotos.length, usingGooglePhotos, googleAuth?.access_token]);
+
 
   useEffect(() => {
     return () => {
