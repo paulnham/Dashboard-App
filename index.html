@@ -2154,7 +2154,7 @@ function SleepModeOverlay({ isActive, spotifyAuth, setSpotifyAuth, onExit, onLog
     "div",
     {
       className:
-  "glass-card p-4 md:p-5 h-[calc(100vh-170px)] min-h-[520px] overflow-hidden"
+        "glass-card p-4 md:p-5 h-[calc(100vh-170px)] min-h-[520px] overflow-hidden",
     },
 
     h(
@@ -2165,19 +2165,19 @@ function SleepModeOverlay({ isActive, spotifyAuth, setSpotifyAuth, onExit, onLog
       },
 
       h(
-  "div",
-  {
-    className:
-      "bg-stone-50/50 dark:bg-stone-900/30 rounded-[28px] border border-stone-100 dark:border-white/5 h-[460px] overflow-hidden self-start",
-  },
-  h(CalendarGrid, {
-    viewDate,
-    onMonthChange,
-    onOpenFilter,
-    events,
-    onDateClick,
-  })
-)
+        "div",
+        {
+          className:
+            "bg-stone-50/50 dark:bg-stone-900/30 rounded-[28px] border border-stone-100 dark:border-white/5 h-[460px] overflow-hidden self-start",
+        },
+        h(CalendarGrid, {
+          viewDate,
+          onMonthChange,
+          onOpenFilter,
+          events,
+          onDateClick,
+        })
+      ),
 
       h(
         "div",
