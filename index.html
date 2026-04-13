@@ -1721,6 +1721,17 @@ useEffect(() => {
 }, [sourcePhotos.length]);
 
 useEffect(() => {
+  const ms = intervalMsMap[photoTransitionInterval];
+  if (!ms || sourcePhotos.length <= 1) return;
+
+  const timer = setInterval(() => {
+    setIdx((prev) => (prev + 1) % sourcePhotos.length);
+  }, ms);
+
+  return () => clearInterval(timer);
+}, [photoTransitionInterval, sourcePhotos.length]);
+
+useEffect(() => {
   const revokeUrl = (ref) => {
     if (ref.current) {
       URL.revokeObjectURL(ref.current);
