@@ -1710,141 +1710,138 @@ function savePhotoTransitionInterval(value) {
   const transitionTimeoutRef = useRef(null);
   const rafRef = useRef(null);
 
-const [idx, setIdx] = useState(0);
-const [currentSrc, setCurrentSrc] = useState("");
-const [prevSrc, setPrevSrc] = useState("");
-const [isSliding, setIsSliding] = useState(false);
-const [enterActive, setEnterActive] = useState(false);
+  const [idx, setIdx] = useState(0);
+  const [currentSrc, setCurrentSrc] = useState("");
+  const [prevSrc, setPrevSrc] = useState("");
+  const [isSliding, setIsSliding] = useState(false);
+  const [enterActive, setEnterActive] = useState(false);
 
-useEffect(() => {
-  setIdx(0);
-}, [sourcePhotos.length]);
+  useEffect(() => {
+    setIdx(0);
+  }, [sourcePhotos.length]);
 
-useEffect(() => {
-  const ms = intervalMsMap[photoTransitionInterval];
-  if (!ms || sourcePhotos.length <= 1) return;
+  useEffect(() => {
+    const ms = intervalMsMap[photoTransitionInterval];
+    if (!ms || sourcePhotos.length <= 1) return;
 
-  const timer = setInterval(() => {
-    setIdx((prev) => (prev + 1) % sourcePhotos.length);
-  }, ms);
+    const timer = setInterval(() => {
+      setIdx((prev) => (prev + 1) % sourcePhotos.length);
+    }, ms);
 
-  return () => clearInterval(timer);
-}, [photoTransitionInterval, sourcePhotos.length]);
+    return () => clearInterval(timer);
+  }, [photoTransitionInterval, sourcePhotos.length]);
 
-useEffect(() => {
-  const revokeUrl = (ref) => {
-    if (ref.current) {
-      URL.revokeObjectURL(ref.current);
-      ref.current = null;
-    }
-  };
+  useEffect(() => {
+    const revokeUrl = (ref) => {
+      if (ref.current) {
+        URL.revokeObjectURL(ref.current);
+        ref.current = null;
+      }
+    };
 
-  let cancelled = false;
+    let cancelled = false;
 
-  const resolveDisplaySrc = async (src) => {
-    if (!src) return "";
+    const resolveDisplaySrc = async (src) => {
+      if (!src) return "";
+      if (!usingGooglePhotos) return src;
+      if (!googleAuth?.access_token) return "";
 
-    if (!usingGooglePhotos) return src;
-    if (!googleAuth?.access_token) return "";
+      const response = await fetch(src, {
+        headers: {
+          Authorization: "Bearer " + googleAuth.access_token,
+        },
+      });
 
-    const response = await fetch(src, {
-      headers: {
-        Authorization: "Bearer " + googleAuth.access_token,
-      },
-    });
+      if (!response.ok) {
+        throw new Error("Google Photos image fetch failed: " + response.status);
+      }
 
-    if (!response.ok) {
-      throw new Error("Google Photos image fetch failed: " + response.status);
-    }
+      const blob = await response.blob();
+      return URL.createObjectURL(blob);
+    };
 
-    const blob = await response.blob();
-    return URL.createObjectURL(blob);
-  };
-
-  const loadNextImage = async () => {
-    const nextSource = sourcePhotos[idx];
-    if (!nextSource) {
-      setPrevSrc("");
-      setCurrentSrc("");
-      setIsSliding(false);
-      setEnterActive(false);
-      return;
-    }
-
-    try {
-      const nextDisplaySrc = await resolveDisplaySrc(nextSource);
-
-      if (cancelled) {
-        if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
-          URL.revokeObjectURL(nextDisplaySrc);
-        }
+    const loadNextImage = async () => {
+      const nextSource = sourcePhotos[idx];
+      if (!nextSource) {
+        setPrevSrc("");
+        setCurrentSrc("");
+        setIsSliding(false);
+        setEnterActive(false);
         return;
       }
 
-      const hadCurrent = !!currentSrc;
+      try {
+        const nextDisplaySrc = await resolveDisplaySrc(nextSource);
 
-      if (!hadCurrent) {
+        if (cancelled) {
+          if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
+            URL.revokeObjectURL(nextDisplaySrc);
+          }
+          return;
+        }
+
+        const hadCurrent = !!currentSrc;
+
+        if (!hadCurrent) {
+          if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
+            revokeUrl(objectUrlRef);
+            objectUrlRef.current = nextDisplaySrc;
+          }
+          setCurrentSrc(nextDisplaySrc);
+          setPrevSrc("");
+          setIsSliding(false);
+          setEnterActive(false);
+          return;
+        }
+
+        if (currentSrc.startsWith("blob:")) {
+          objectUrlPrevRef.current = currentSrc;
+        }
+
         if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
           revokeUrl(objectUrlRef);
           objectUrlRef.current = nextDisplaySrc;
         }
+
+        setPrevSrc(currentSrc);
         setCurrentSrc(nextDisplaySrc);
-        setPrevSrc("");
         setIsSliding(false);
         setEnterActive(false);
-        return;
-      }
 
-      if (currentSrc.startsWith("blob:")) {
-        objectUrlPrevRef.current = currentSrc;
-      }
-
-      if (nextDisplaySrc && nextDisplaySrc.startsWith("blob:")) {
-        revokeUrl(objectUrlRef);
-        objectUrlRef.current = nextDisplaySrc;
-      }
-
-      setPrevSrc(currentSrc);
-      setCurrentSrc(nextDisplaySrc);
-
-      setIsSliding(false);
-      setEnterActive(false);
-
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
         rafRef.current = requestAnimationFrame(() => {
-          if (cancelled) return;
-          setIsSliding(true);
-          setEnterActive(true);
+          rafRef.current = requestAnimationFrame(() => {
+            if (cancelled) return;
+            setIsSliding(true);
+            setEnterActive(true);
+          });
         });
-      });
 
-      if (transitionTimeoutRef.current) {
-        clearTimeout(transitionTimeoutRef.current);
-      }
-
-      transitionTimeoutRef.current = setTimeout(() => {
-        setPrevSrc("");
-        setIsSliding(false);
-        setEnterActive(false);
-
-        if (objectUrlPrevRef.current) {
-          URL.revokeObjectURL(objectUrlPrevRef.current);
-          objectUrlPrevRef.current = null;
+        if (transitionTimeoutRef.current) {
+          clearTimeout(transitionTimeoutRef.current);
         }
-      }, 750);
-    } catch (err) {
-      console.error("Google Photos widget image failed:", err);
-    }
-  };
 
-  loadNextImage();
+        transitionTimeoutRef.current = setTimeout(() => {
+          setPrevSrc("");
+          setIsSliding(false);
+          setEnterActive(false);
 
-  return () => {
-    cancelled = true;
-  };
-}, [idx, sourcePhotos.length, usingGooglePhotos, googleAuth?.access_token]);
+          if (objectUrlPrevRef.current) {
+            URL.revokeObjectURL(objectUrlPrevRef.current);
+            objectUrlPrevRef.current = null;
+          }
+        }, 750);
+      } catch (err) {
+        console.error("Google Photos widget image failed:", err);
+      }
+    };
 
+    loadNextImage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [idx, sourcePhotos.length, usingGooglePhotos, googleAuth?.access_token]);
 
   useEffect(() => {
     return () => {
@@ -1917,13 +1914,23 @@ useEffect(() => {
           setIdx((prev) => (prev + 1) % sourcePhotos.length);
         },
         className:
-          "absolute top-4 right-4 z-20 p-2 bg-black/20 rounded-xl text-white opacity-0 group-hover:opacity-100 transition-all active:scale-90",
+          "absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 rounded-full bg-black/25 backdrop-blur-md border border-white/10 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all active:scale-90",
+        "aria-label": "Next photo",
+        title: "Next photo",
       },
       h(
         "svg",
-        { width: 14, height: 14, fill: "none", stroke: "currentColor", strokeWidth: 3 },
-        h("path", { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" }),
-        h("path", { d: "M21 3v5h-5" })
+        {
+          width: 18,
+          height: 18,
+          viewBox: "0 0 24 24",
+          fill: "none",
+          stroke: "currentColor",
+          strokeWidth: 2.5,
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+        },
+        h("path", { d: "M9 18l6-6-6-6" })
       )
     ),
 
