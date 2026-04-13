@@ -1909,31 +1909,6 @@ useEffect(() => {
         "Loading photo..."
       ),
 
-    usingGooglePhotos &&
-      h(
-        "div",
-        {
-          className:
-            "absolute top-3 left-3 z-20 w-9 h-9 rounded-xl bg-black/25 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/90",
-          title: "Google Photos",
-        },
-        h(
-          "svg",
-          {
-            width: 16,
-            height: 16,
-            viewBox: "0 0 24 24",
-            fill: "none",
-            stroke: "currentColor",
-            strokeWidth: 2,
-            strokeLinecap: "round",
-            strokeLinejoin: "round",
-          },
-          h("path", { d: "M4 7h3l2-2h6l2 2h3v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z" }),
-          h("circle", { cx: 12, cy: 13, r: 3 })
-        )
-      ),
-
     h(
       "button",
       {
