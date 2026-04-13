@@ -1710,7 +1710,7 @@ function savePhotoTransitionInterval(value) {
   const transitionTimeoutRef = useRef(null);
   const rafRef = useRef(null);
 
-  const [idx, setIdx] = useState(0);
+const [idx, setIdx] = useState(0);
 const [currentSrc, setCurrentSrc] = useState("");
 const [prevSrc, setPrevSrc] = useState("");
 const [isSliding, setIsSliding] = useState(false);
@@ -1719,17 +1719,6 @@ const [enterActive, setEnterActive] = useState(false);
 useEffect(() => {
   setIdx(0);
 }, [sourcePhotos.length]);
-
-useEffect(() => {
-  const ms = intervalMsMap[photoTransitionInterval];
-  if (!ms || sourcePhotos.length <= 1) return;
-
-  const timer = setInterval(() => {
-    setIdx((prev) => (prev + 1) % sourcePhotos.length);
-  }, ms);
-
-  return () => clearInterval(timer);
-}, [photoTransitionInterval, sourcePhotos.length]);
 
 useEffect(() => {
   const revokeUrl = (ref) => {
@@ -1795,8 +1784,6 @@ useEffect(() => {
         return;
       }
 
-      setPrevSrc(currentSrc);
-
       if (currentSrc.startsWith("blob:")) {
         objectUrlPrevRef.current = currentSrc;
       }
@@ -1806,14 +1793,18 @@ useEffect(() => {
         objectUrlRef.current = nextDisplaySrc;
       }
 
-      setEnterActive(false);
+      setPrevSrc(currentSrc);
       setCurrentSrc(nextDisplaySrc);
-      setIsSliding(true);
+
+      setIsSliding(false);
+      setEnterActive(false);
 
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = requestAnimationFrame(() => {
-          if (!cancelled) setEnterActive(true);
+          if (cancelled) return;
+          setIsSliding(true);
+          setEnterActive(true);
         });
       });
 
@@ -1841,7 +1832,7 @@ useEffect(() => {
   return () => {
     cancelled = true;
   };
-}, [idx, sourcePhotos.length, usingGooglePhotos, googleAuth?.access_token]);
+}, [idx, sourcePhotos.length, usingGooglePhotos, googleAuth?.access_token, currentSrc]);
 
 
   useEffect(() => {
